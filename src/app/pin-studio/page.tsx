@@ -557,7 +557,11 @@ function PinStudioContent() {
             )}
             <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
               {selectedImages.map((image, index) => (
-                <div key={`${image}-${index}`} className="p-2.5 rounded-lg bg-white border border-[#e8dbca] space-y-2">
+                <div
+                  key={`${image}-${index}`}
+                  onClick={() => setPreviewIndex(index)}
+                  className="p-2.5 rounded-lg bg-white border border-[#e8dbca] space-y-2 cursor-pointer hover:border-[#9b7053] transition-colors"
+                >
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -581,6 +585,7 @@ function PinStudioContent() {
                       Image {index + 1}{selectedArticle?.items?.[index]?.title ? ` · ${selectedArticle.items[index].title}` : ''}
                     </span>
                   </div>
+                  <p className="text-[10px] text-[#9b7053]">Click this image to preview it</p>
                   <textarea
                     rows={2}
                     value={imagePrompts[index] || ''}
