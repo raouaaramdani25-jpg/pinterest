@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { 
   Sparkles, Pin, Globe, ArrowRight, CheckCircle2, Clock, 
-  ExternalLink, ShoppingBag, Eye, TrendingUp, ShieldCheck, RefreshCw 
+  ExternalLink, ShoppingBag, Eye, TrendingUp, ShieldCheck, RefreshCw, Trash2
 } from 'lucide-react';
 import { Article } from '@/types';
 
@@ -12,6 +12,7 @@ export default function DashboardPage() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [publishMessage, setPublishMessage] = useState<{ id: string; text: string; error?: boolean } | null>(null);
 
   const fetchArticles = async () => {
@@ -52,6 +53,33 @@ export default function DashboardPage() {
       setPublishMessage({ id: articleId, text: err.message, error: true });
     } finally {
       setPublishingId(null);
+    }
+  };
+
+  const handleDeleteArticle = async (article: Article) => {
+    if (!window.confirm(`Delete "${article.title}" from the dashboard and remove its generated local images?`)) {
+      return;
+    }
+
+    setDeletingId(article.id);
+    setPublishMessage(null);
+    try {
+      const res = await fetch('/api/articles', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: article.id }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to delete the article.');
+      }
+
+      setArticles((current) => current.filter((item) => item.id !== article.id));
+    } catch (err: any) {
+      setPublishMessage({ id: article.id, text: err.message, error: true });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -257,6 +285,14 @@ export default function DashboardPage() {
                         </button>
                       </>
                     )}
+                    <button
+                      onClick={() => handleDeleteArticle(article)}
+                      disabled={deletingId === article.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {deletingId === article.id ? 'Cleaning...' : 'Delete & Cleanup'}
+                    </button>
                   </div>
                 </div>
 
