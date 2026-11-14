@@ -166,6 +166,31 @@ async function saveGeneratedImage(image: GeneratedImage, item: ArticleItem, inde
   return `/generated/${filename}`;
 }
 
+export async function generateReplacementImage(
+  item: ArticleItem,
+  index: number,
+  customPrompt?: string
+): Promise<string | null> {
+  const sourceImage = item.imageUrl ? await fetchSourceImage(item.imageUrl) : null;
+  const prompt = `${customPrompt?.trim() || `${item.title}. ${item.imagePrompt || item.description}`}. Warm, premium, realistic home decor photography.`;
+  let generatedImage: GeneratedImage | null = null;
+
+  for (const provider of [
+    () => sourceImage ? generateWithGoogle(prompt, sourceImage) : null,
+    () => sourceImage ? generateWithCloudflare(prompt, sourceImage) : null,
+    () => generateWithRecraft(prompt),
+  ]) {
+    try {
+      generatedImage = await provider();
+      if (generatedImage) break;
+    } catch (error) {
+      console.warn('Image provider failed; trying the next provider:', error);
+    }
+  }
+
+  return generatedImage ? saveGeneratedImage(generatedImage, item, index) : null;
+}
+
 export async function generateReplacementImages(items: ArticleItem[]): Promise<number> {
   let generatedCount = 0;
 
@@ -173,25 +198,9 @@ export async function generateReplacementImages(items: ArticleItem[]): Promise<n
     const item = items[index];
     if (!item.imageUrl) continue;
 
-    const sourceImage = await fetchSourceImage(item.imageUrl);
-    const prompt = `${item.title}. ${item.imagePrompt || item.description}. Warm, premium, realistic home decor photography.`;
-    let generatedImage: GeneratedImage | null = null;
-
-    for (const provider of [
-      () => sourceImage ? generateWithGoogle(prompt, sourceImage) : null,
-      () => sourceImage ? generateWithCloudflare(prompt, sourceImage) : null,
-      () => generateWithRecraft(prompt),
-    ]) {
-      try {
-        generatedImage = await provider();
-        if (generatedImage) break;
-      } catch (error) {
-        console.warn('Image provider failed; trying the next provider:', error);
-      }
-    }
-
-    if (generatedImage) {
-      item.imageUrl = await saveGeneratedImage(generatedImage, item, index);
+    const generatedUrl = await generateReplacementImage(item, index);
+    if (generatedUrl) {
+      item.imageUrl = generatedUrl;
       generatedCount += 1;
     }
   }
