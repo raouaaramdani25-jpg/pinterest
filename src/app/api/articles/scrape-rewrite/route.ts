@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { buildAmazonSearchUrl, DEFAULT_AMAZON_TAG } from '@/lib/amazon';
 import { matchCozyImage } from '@/lib/image-matcher';
+import { generateReplacementImages } from '@/lib/image-generator';
 import { Article, ArticleItem } from '@/types';
-import fs from 'fs';
-import path from 'path';
 
 // Clean raw HTML to plain text
 function stripHtml(html: string): string {
@@ -295,6 +294,7 @@ export async function POST(req: Request) {
       });
     }
 
+    const generatedImageCount = await generateReplacementImages(rewrittenItems);
     const rewrittenTitle =
       aiRewrite?.title?.trim() ||
       `10 Cozy ${originalTitle.replace(/^(the|top|best|\d+)\s*/i, '')} Ideas You'll Want to Copy Immediately`;
@@ -320,7 +320,7 @@ export async function POST(req: Request) {
       sourceUrl: url,
       originalTitle,
       itemsCount: rewrittenItems.length,
-      message: `Successfully scraped and ${usedAiRewrite ? 'AI-rewritten with OpenRouter' : 'rewritten with the local fallback'} "${originalTitle}" into ${rewrittenItems.length} cozy listicle items with Amazon links & images!`,
+      message: `Successfully scraped and ${usedAiRewrite ? 'AI-rewritten with OpenRouter' : 'rewritten with the local fallback'} "${originalTitle}" into ${rewrittenItems.length} cozy listicle items. Generated ${generatedImageCount} replacement AI images.`,
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
