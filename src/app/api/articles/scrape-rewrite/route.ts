@@ -158,8 +158,8 @@ export async function POST(req: Request) {
       const cleanTitle = item.title.replace(/^[\d\.\s#\-]+/, '').trim();
       const rewrittenDescription = rewriteToCozyTone(cleanTitle, item.desc);
       
-      // Match aesthetic image and Midjourney/Gemini prompt
-      const imageMatch = matchCozyImage(cleanTitle, item.desc);
+      // Match aesthetic AI image (Flux Model) and Midjourney/Gemini prompt
+      const imageMatch = matchCozyImage(cleanTitle, item.desc, idx);
 
       // Clean Amazon search keyword (remove quotes and noise words)
       const amazonKeyword = cleanTitle
