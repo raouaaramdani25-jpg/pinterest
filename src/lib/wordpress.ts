@@ -87,16 +87,30 @@ export async function uploadFeaturedMedia(
     const mediaEndpoint = `${cleanSiteUrl}/wp-json/wp/v2/media`;
     const authHeader = getBasicAuthHeader(credentials.username, credentials.appPassword);
 
-    // Fetch the image binary data
-    const imgRes = await fetch(imageUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      },
-    });
+    let buffer: Buffer | null = null;
 
-    if (!imgRes.ok) return null;
-    const arrayBuffer = await imgRes.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // Check if it's a local public image file
+    if (imageUrl.startsWith('/') || (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://'))) {
+      const fs = await import('fs');
+      const path = await import('path');
+      const localPath = path.join(process.cwd(), 'public', imageUrl.replace(/^\//, ''));
+      if (fs.existsSync(localPath)) {
+        buffer = fs.readFileSync(localPath);
+      }
+    }
+
+    // Otherwise fetch the remote image
+    if (!buffer) {
+      const imgRes = await fetch(imageUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        },
+      });
+
+      if (!imgRes.ok) return null;
+      const arrayBuffer = await imgRes.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+    }
 
     const safeTitle = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30);
     const filename = `cozyspace-${safeTitle}-${Date.now()}.jpg`;
