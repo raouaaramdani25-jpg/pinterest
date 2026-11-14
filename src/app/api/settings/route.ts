@@ -12,7 +12,7 @@ function getStoredSettings() {
   }
   return {
     wpSiteUrl: process.env.WP_SITE_URL || 'https://cozyspace.company',
-    wpUsername: process.env.WP_USERNAME || 'CozySpaceApp',
+    wpUsername: process.env.WP_USERNAME || 'admin',
     wpAppPassword: process.env.WP_APP_PASSWORD || 'WfSP R4rl v3Aq DDaD jksn Iy2l',
     amazonTag: process.env.AMAZON_TAG || 'cozyplace04-20',
   };

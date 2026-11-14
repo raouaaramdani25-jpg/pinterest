@@ -9,26 +9,32 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const siteUrl = (body.siteUrl || process.env.WP_SITE_URL || 'https://cozyspace.company').replace(/\/+$/, '');
-    const username = body.username || process.env.WP_USERNAME || 'CozySpaceApp';
+    let username = body.username || process.env.WP_USERNAME || 'admin';
     const appPassword = body.appPassword || process.env.WP_APP_PASSWORD || '';
 
-    const authHeader = getBasicAuthHeader(username, appPassword);
+    const testUrl = `${siteUrl}/wp-json/wp/v2/users/me`;
 
-    const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 WordPress-Publisher/1.0',
-      'Accept': 'application/json, text/plain, */*',
-      Authorization: authHeader,
+    const tryAuth = async (userToTry: string) => {
+      const authHeader = getBasicAuthHeader(userToTry, appPassword);
+      const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 WordPress-Publisher/1.0',
+        'Accept': 'application/json, text/plain, */*',
+        Authorization: authHeader,
+      };
+      return fetch(testUrl, { method: 'GET', headers });
     };
 
-    // Test endpoint: /wp-json/wp/v2/users/me verifies both URL and Application Password
-    const testUrl = `${siteUrl}/wp-json/wp/v2/users/me`;
-    
     let response;
     try {
-      response = await fetch(testUrl, {
-        method: 'GET',
-        headers,
-      });
+      response = await tryAuth(username);
+      // If 401 with 'admin', try the email address automatically
+      if ((response.status === 401 || response.status === 403) && username !== 'raouaa.ramdani25@ump.ac.ma') {
+        const emailRes = await tryAuth('raouaa.ramdani25@ump.ac.ma');
+        if (emailRes.ok) {
+          response = emailRes;
+          username = 'raouaa.ramdani25@ump.ac.ma';
+        }
+      }
     } catch (netErr: any) {
       const detailed = netErr.cause ? ` (${netErr.cause.code || netErr.cause.message || netErr.cause})` : '';
       return NextResponse.json({
