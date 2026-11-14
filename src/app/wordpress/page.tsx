@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Globe, CheckCircle2, Clock, ExternalLink, Send, 
-  Eye, ShieldCheck, RefreshCw, AlertCircle, Copy, Check, Sparkles
+  Eye, ShieldCheck, RefreshCw, AlertCircle, Copy, Check, Sparkles, Trash2
 } from 'lucide-react';
 import { Article } from '@/types';
 import { formatArticleForWordPress } from '@/lib/wordpress';
@@ -16,6 +16,7 @@ export default function WordPressPublisherPage() {
   const [publishStatus, setPublishStatus] = useState<'draft' | 'publish'>('draft');
   const [result, setResult] = useState<{ success: boolean; message: string; url?: string } | null>(null);
   const [copiedGutenberg, setCopiedGutenberg] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchArticles = async () => {
     try {
@@ -71,6 +72,40 @@ export default function WordPressPublisherPage() {
       });
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const handleDeleteArticle = async () => {
+    if (!activeArticle) return;
+    if (!window.confirm(`Delete "${activeArticle.title}" from the dashboard and remove its generated local images?`)) {
+      return;
+    }
+
+    setDeleting(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/articles', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: activeArticle.id }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to delete the article.');
+      }
+
+      const remainingArticles = articles.filter((article) => article.id !== activeArticle.id);
+      setArticles(remainingArticles);
+      setActiveArticle(remainingArticles[0] || null);
+      setResult({
+        success: true,
+        message: `Article removed. ${data.deletedImages || 0} generated image(s) cleaned up locally.`,
+      });
+    } catch (err: any) {
+      setResult({ success: false, message: err.message || 'Failed to delete the article.' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -222,6 +257,16 @@ export default function WordPressPublisherPage() {
               >
                 <Send className="w-4 h-4" />
                 {publishing ? 'Uploading to WordPress...' : `Upload to WordPress (${publishStatus.toUpperCase()})`}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDeleteArticle}
+                disabled={deleting}
+                className="w-full py-2.5 px-4 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deleting ? 'Cleaning up...' : 'Delete & Cleanup Locally'}
               </button>
 
               {/* 1-Click Copy Gutenberg Blocks (100% Fail-Proof Backup) */}
