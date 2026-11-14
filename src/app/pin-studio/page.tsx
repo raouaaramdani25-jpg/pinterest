@@ -539,18 +539,18 @@ function PinStudioContent() {
               {selectedImages.map((image, index) => (
                 <div key={`${image}-${index}`} className="p-2.5 rounded-lg bg-white border border-[#e8dbca] space-y-2">
                   <div className="flex items-center gap-2">
-                    <div className="relative w-12 h-12 rounded-md overflow-hidden border border-[#e8dbca] bg-[#f4ede2] flex items-center justify-center">
+                    <div className="relative w-28 h-20 shrink-0 rounded-md overflow-hidden border border-[#e8dbca] bg-[#f4ede2] flex items-center justify-center">
                       <img
                         src={previewImageUrl(image)}
-                        alt=""
+                        alt={`Preview for image ${index + 1}`}
                         className="relative z-10 w-full h-full object-cover"
                         onError={(event) => {
                           event.currentTarget.style.display = 'none';
                         }}
                       />
-                      <ImageIcon className="w-5 h-5 text-[#b28867]" />
+                      <ImageIcon className="absolute w-6 h-6 text-[#b28867]" />
                     </div>
-                    <span className="text-[11px] font-semibold text-[#553c30]">
+                    <span className="text-[11px] font-semibold leading-relaxed text-[#553c30]">
                       Image {index + 1}{selectedArticle?.items?.[index]?.title ? ` · ${selectedArticle.items[index].title}` : ''}
                     </span>
                   </div>
