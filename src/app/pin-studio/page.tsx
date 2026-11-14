@@ -32,6 +32,21 @@ function PinStudioContent() {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  const normalizeImageUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('data:') || /^https?:\/\//i.test(url)) return url;
+    if (url.startsWith('/')) return url;
+    if (url.startsWith('public/')) return `/${url.slice('public/'.length)}`;
+    return `/${url}`;
+  };
+
+  const previewImageUrl = (url: string) => {
+    const normalizedUrl = normalizeImageUrl(url);
+    return /^https?:\/\//i.test(normalizedUrl)
+      ? `/api/images/proxy?url=${encodeURIComponent(normalizedUrl)}`
+      : normalizedUrl;
+  };
+
   // Load articles
   useEffect(() => {
     fetch('/api/articles')
@@ -49,7 +64,7 @@ function PinStudioContent() {
   const applyArticleData = (article: Article) => {
     setPinTitle(article.title);
     setPinSubtitle(`${article.items?.length || 10} Aesthetic Decor Pieces for a Warm Home`);
-    const imgs = article.items?.map((i) => i.imageUrl).filter(Boolean) || [];
+    const imgs = article.items?.map((i) => normalizeImageUrl(i.imageUrl)).filter(Boolean) || [];
     setImagePrompts(article.items?.map((item) => item.imagePrompt || item.description) || []);
     setSelectedImages(imgs.length > 0 ? imgs : [
       'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1000&q=80',
@@ -78,14 +93,13 @@ function PinStudioContent() {
     const loadImage = (url: string): Promise<HTMLImageElement> => {
       return new Promise((resolve) => {
         const img = new Image();
-        img.crossOrigin = 'anonymous';
         img.onload = () => resolve(img);
         img.onerror = () => {
           // If image fails, create a placeholder canvas
           const fallback = new Image();
           resolve(fallback);
         };
-        img.src = url;
+        img.src = previewImageUrl(url);
       });
     };
 
@@ -525,7 +539,17 @@ function PinStudioContent() {
               {selectedImages.map((image, index) => (
                 <div key={`${image}-${index}`} className="p-2.5 rounded-lg bg-white border border-[#e8dbca] space-y-2">
                   <div className="flex items-center gap-2">
-                    <img src={image} alt="" className="w-12 h-12 rounded-md object-cover border border-[#e8dbca]" />
+                    <div className="relative w-12 h-12 rounded-md overflow-hidden border border-[#e8dbca] bg-[#f4ede2] flex items-center justify-center">
+                      <img
+                        src={previewImageUrl(image)}
+                        alt=""
+                        className="relative z-10 w-full h-full object-cover"
+                        onError={(event) => {
+                          event.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <ImageIcon className="w-5 h-5 text-[#b28867]" />
+                    </div>
                     <span className="text-[11px] font-semibold text-[#553c30]">
                       Image {index + 1}{selectedArticle?.items?.[index]?.title ? ` · ${selectedArticle.items[index].title}` : ''}
                     </span>
