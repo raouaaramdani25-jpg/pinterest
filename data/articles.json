@@ -1,0 +1,55 @@
+[
+  {
+    "id": "article-1794672975118",
+    "slug": "10-aesthetic-coffee-station-ideas-for-small-kitchens",
+    "title": "10 Aesthetic Coffee Station Ideas for Small Kitchens",
+    "metaDescription": "Discover beautiful and cozy kitchen decor ideas to transform your home with aesthetic comfort and practical Amazon finds.",
+    "category": "Kitchen Decor",
+    "tags": [
+      "Cozy Decor",
+      "Kitchen Decor",
+      "Amazon Home",
+      "Pinterest Aesthetic"
+    ],
+    "createdAt": "2026-11-14T16:16:15.118Z",
+    "status": "draft",
+    "items": [
+      {
+        "id": "item-1794672975119-1",
+        "itemNumber": 1,
+        "title": "Warm Wood Monitor Stand with Storage Drawer",
+        "description": "Elevate your screen to eye level while concealing notebooks and pens. Solid bamboo or walnut wood introduces instant organic warmth to your desk setup.",
+        "imageUrl": "https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?auto=format&fit=crop&w=1000&q=80",
+        "imagePrompt": "Aesthetic minimalist wooden desk setup with natural light, warm neutral tones",
+        "amazonKeyword": "wooden monitor stand riser drawer",
+        "amazonSearchUrl": "https://www.amazon.com/s?k=wooden%20monitor%20stand%20riser%20drawer&tag=cozyplace04-20",
+        "ctaText": "Shop Monitor Risers on Amazon",
+        "estimatedPrice": "$28 - $45"
+      },
+      {
+        "id": "item-1794672975119-2",
+        "itemNumber": 2,
+        "title": "Faux Fur Ergonomic Desk Chair Cushion",
+        "description": "Upgrade any standard chair with a plush sherpa or faux rabbit fur seat cushion. It delivers cloud-level softness during long creative sessions.",
+        "imageUrl": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1000&q=80",
+        "imagePrompt": "Cozy home office desk chair with cream faux fur cushion and knitted throw",
+        "amazonKeyword": "faux fur seat cushion desk chair",
+        "amazonSearchUrl": "https://www.amazon.com/s?k=faux%20fur%20seat%20cushion%20desk%20chair&tag=cozyplace04-20",
+        "ctaText": "View Plush Chair Cushions on Amazon",
+        "estimatedPrice": "$22 - $35"
+      },
+      {
+        "id": "item-1794672975119-3",
+        "itemNumber": 3,
+        "title": "Amber Glass Ultrasonic Essential Oil Diffuser",
+        "description": "Diffusing sweet orange, cedarwood, and vanilla fills your work space with a calming aroma while adding a gentle golden glow to your desktop.",
+        "imageUrl": "https://images.unsplash.com/photo-1602874801007-bd458bb1b8b6?auto=format&fit=crop&w=1000&q=80",
+        "imagePrompt": "Amber glass aroma diffuser with soft mist on a wooden desk, aesthetic desk accessories",
+        "amazonKeyword": "amber glass essential oil diffuser quiet",
+        "amazonSearchUrl": "https://www.amazon.com/s?k=amber%20glass%20essential%20oil%20diffuser%20quiet&tag=cozyplace04-20",
+        "ctaText": "Find Amber Diffusers on Amazon",
+        "estimatedPrice": "$25 - $38"
+      }
+    ]
+  }
+]
