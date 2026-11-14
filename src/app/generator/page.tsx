@@ -123,7 +123,20 @@ export default function ArticleGeneratorPage() {
         if (data.article.metaDescription) setMetaDescription(data.article.metaDescription);
         if (data.article.items?.length > 0) setItems(data.article.items);
 
-        setScrapeSuccessMsg(data.message || `Successfully rewritten into ${data.itemsCount} cozy items with Amazon links & images!`);
+        const saveRes = await fetch('/api/articles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data.article),
+        });
+        const saveData = await saveRes.json();
+
+        if (!saveRes.ok || !saveData.success) {
+          throw new Error(saveData.error || 'The rewritten article could not be saved.');
+        }
+
+        setScrapeSuccessMsg(
+          `${data.message || `Successfully rewritten into ${data.itemsCount} cozy items with Amazon links & images!`} Saved to Articles & Studio.`
+        );
         setScrapeStatus('');
       } else {
         setScrapeError(data.error || 'Failed to scrape and rewrite the article.');
