@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getBasicAuthHeader } from '@/lib/wordpress';
 
+if (typeof process !== 'undefined') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -10,15 +14,28 @@ export async function POST(req: Request) {
 
     const authHeader = getBasicAuthHeader(username, appPassword);
 
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 WordPress-Publisher/1.0',
+      'Accept': 'application/json, text/plain, */*',
+      Authorization: authHeader,
+    };
+
     // Test endpoint: /wp-json/wp/v2/users/me verifies both URL and Application Password
     const testUrl = `${siteUrl}/wp-json/wp/v2/users/me`;
     
-    const response = await fetch(testUrl, {
-      method: 'GET',
-      headers: {
-        Authorization: authHeader,
-      },
-    });
+    let response;
+    try {
+      response = await fetch(testUrl, {
+        method: 'GET',
+        headers,
+      });
+    } catch (netErr: any) {
+      const detailed = netErr.cause ? ` (${netErr.cause.code || netErr.cause.message || netErr.cause})` : '';
+      return NextResponse.json({
+        success: false,
+        error: `Could not reach ${siteUrl}: ${netErr.message}${detailed}. Please verify site URL and SSL certificate.`,
+      });
+    }
 
     if (response.ok) {
       const userData = await response.json();

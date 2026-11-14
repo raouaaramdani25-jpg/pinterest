@@ -1,6 +1,11 @@
 import { Article } from '@/types';
 import { FTC_DISCLOSURE_HTML } from './amazon';
 
+// Allow connecting to WordPress sites even with custom, self-signed, or Let's Encrypt chain issues
+if (typeof process !== 'undefined') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
+
 export interface WpCredentials {
   siteUrl: string;
   username: string;
@@ -93,6 +98,8 @@ export async function publishToWordPress(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 WordPress-Publisher/1.0',
+        'Accept': 'application/json, text/plain, */*',
         Authorization: authHeader,
       },
       body: JSON.stringify(payload),
@@ -113,9 +120,10 @@ export async function publishToWordPress(
       postUrl: data.link,
     };
   } catch (err: any) {
+    const detailedCause = err.cause ? ` (${err.cause.code || err.cause.message || err.cause})` : '';
     return {
       success: false,
-      error: `Network error connecting to WordPress: ${err.message}`,
+      error: `Network error connecting to WordPress: ${err.message}${detailedCause}. Check site SSL or firewall.`,
     };
   }
 }

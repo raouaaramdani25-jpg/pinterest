@@ -1,5 +1,58 @@
 [
   {
+    "id": "article-1794675101774",
+    "slug": "10-cozy-reading-nook-ideas-that-will-make-you-never-want-to-leave",
+    "title": "10 Cozy Reading Nook Ideas That Will Make You Never Want to Leave",
+    "metaDescription": "Discover aesthetic, cozy decor ideas and must-have Amazon finds to elevate your home comfort.",
+    "category": "Home Decor",
+    "tags": [
+      "Cozy Decor",
+      "Amazon Home",
+      "Aesthetic Room",
+      "Home Decor"
+    ],
+    "items": [
+      {
+        "id": "item-1",
+        "itemNumber": 1,
+        "title": "Plush Bouclé Swivel Accent Chair",
+        "description": "A creamy, cloud-textured bouclé chair creates an instantly welcoming corner for reading or resting.",
+        "imageUrl": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1000&q=80",
+        "imagePrompt": "Cozy cream boucle chair beside a sunny window with a soft knitted throw",
+        "amazonKeyword": "boucle swivel accent chair cream",
+        "amazonSearchUrl": "https://www.amazon.com/s?k=boucle+swivel+accent+chair+cream&tag=cozyplace04-20",
+        "ctaText": "Shop Bouclé Accent Chairs on Amazon",
+        "estimatedPrice": "$190"
+      },
+      {
+        "id": "item-2",
+        "itemNumber": 2,
+        "title": "Warm Arc Floor Lamp with Linen Shade",
+        "description": "Replace harsh overhead lighting with a gentle downward warm glow that sets a calm, cozy evening mood.",
+        "imageUrl": "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=1000&q=80",
+        "imagePrompt": "Brass arched floor lamp with warm glow over a comfortable armchair, cozy evening vibe",
+        "amazonKeyword": "brass arc floor lamp warm lighting",
+        "amazonSearchUrl": "https://www.amazon.com/s?k=brass+arc+floor+lamp+warm+lighting&tag=cozyplace04-20",
+        "ctaText": "Check Arc Lamps on Amazon",
+        "estimatedPrice": "$55"
+      },
+      {
+        "id": "item-3",
+        "itemNumber": 3,
+        "title": "Chunky Handwoven Chenille Throw Blanket",
+        "description": "Layering tactile textures is the key to that warm Pinterest look. Chenille knit provides warmth without excess bulk.",
+        "imageUrl": "https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=1000&q=80",
+        "imagePrompt": "Oversized beige chunky knit blanket draped over a linen chair with a ceramic coffee mug",
+        "amazonKeyword": "chunky knit throw blanket beige",
+        "amazonSearchUrl": "https://www.amazon.com/s?k=chunky+knit+throw+blanket+beige&tag=cozyplace04-20",
+        "ctaText": "View Chunky Throws on Amazon",
+        "estimatedPrice": "$42"
+      }
+    ],
+    "createdAt": "2026-11-14T16:51:41.775Z",
+    "status": "draft"
+  },
+  {
     "id": "article-1794672975118",
     "slug": "10-aesthetic-coffee-station-ideas-for-small-kitchens",
     "title": "10 Aesthetic Coffee Station Ideas for Small Kitchens",

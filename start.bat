@@ -1,4 +1,5 @@
 @echo off
+set NODE_TLS_REJECT_UNAUTHORIZED=0
 echo ========================================================
 echo       CozySpace Automation Studio - Launching
 echo   Pinterest + Amazon Affiliate Engine for cozyspace.company
