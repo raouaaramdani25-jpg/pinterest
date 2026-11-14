@@ -17,8 +17,11 @@ export async function POST(req: Request) {
     const tryAuth = async (userToTry: string) => {
       const authHeader = getBasicAuthHeader(userToTry, appPassword);
       const headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 WordPress-Publisher/1.0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Origin': siteUrl,
+        'Referer': `${siteUrl}/wp-admin/`,
         Authorization: authHeader,
       };
       return fetch(testUrl, { method: 'GET', headers });

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Globe, CheckCircle2, Clock, ExternalLink, Send, 
-  Eye, ShieldCheck, RefreshCw, AlertCircle 
+  Eye, ShieldCheck, RefreshCw, AlertCircle, Copy, Check 
 } from 'lucide-react';
 import { Article } from '@/types';
 import { formatArticleForWordPress } from '@/lib/wordpress';
@@ -15,6 +15,7 @@ export default function WordPressPublisherPage() {
   const [publishing, setPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState<'draft' | 'publish'>('draft');
   const [result, setResult] = useState<{ success: boolean; message: string; url?: string } | null>(null);
+  const [copiedGutenberg, setCopiedGutenberg] = useState(false);
 
   const fetchArticles = async () => {
     try {
@@ -181,6 +182,43 @@ export default function WordPressPublisherPage() {
                 <Send className="w-4 h-4" />
                 {publishing ? 'Uploading to WordPress...' : `Upload to WordPress (${publishStatus.toUpperCase()})`}
               </button>
+
+              {/* 1-Click Copy Gutenberg Blocks (100% Fail-Proof Backup) */}
+              <div className="pt-2 border-t border-[#f4ede2] space-y-2">
+                <div className="flex items-center justify-between text-xs text-[#7c5742]">
+                  <span className="font-bold">1-Click Manual Backup:</span>
+                  <a 
+                    href="https://cozyspace.company/wp-admin/post-new.php" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-[#9b7053] hover:text-[#553c30] font-semibold underline"
+                  >
+                    Open New Post in WP ↗
+                  </a>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const blockContent = formatArticleForWordPress(activeArticle);
+                    navigator.clipboard.writeText(blockContent);
+                    setCopiedGutenberg(true);
+                    setTimeout(() => setCopiedGutenberg(false), 3000);
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#faf7f2] hover:bg-[#f4ede2] border border-[#d7c1a8] text-[#2f1f1a] text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                >
+                  {copiedGutenberg ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-600" />
+                      <span className="text-emerald-700">Copied Gutenberg Blocks! (Just press Ctrl+V in WP)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 text-[#9b7053]" />
+                      <span>Copy Full Gutenberg Post (Ctrl+C)</span>
+                    </>
+                  )}
+                </button>
+              </div>
 
               {/* Response Alert */}
               {result && (

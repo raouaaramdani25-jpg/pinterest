@@ -98,8 +98,11 @@ export async function publishToWordPress(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 WordPress-Publisher/1.0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Origin': cleanSiteUrl,
+        'Referer': `${cleanSiteUrl}/wp-admin/`,
         Authorization: authHeader,
       },
       body: JSON.stringify(payload),
@@ -107,9 +110,15 @@ export async function publishToWordPress(
 
     if (!response.ok) {
       const errText = await response.text();
+      let friendlyError = `WordPress API status ${response.status}`;
+      if (errText.includes('openresty') || errText.includes('403 Forbidden')) {
+        friendlyError = `Hosting Firewall / WAF blocked the REST API call (403 Forbidden). You can use the "Copy Gutenberg Blocks" button to paste with 1-click in WP Admin, or disable REST API restriction in your host panel (Hostinger/Cloudflare).`;
+      } else {
+        friendlyError = `${friendlyError}: ${errText.slice(0, 300)}`;
+      }
       return {
         success: false,
-        error: `WordPress API responded with status ${response.status}: ${errText}`,
+        error: friendlyError,
       };
     }
 
