@@ -86,6 +86,83 @@ export default function ArticleGeneratorPage() {
 
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  
+  // Importer states (URL & Text)
+  const [importMode, setImportMode] = useState<'url' | 'text'>('url');
+  const [competitorUrl, setCompetitorUrl] = useState('');
+  const [rawInput, setRawInput] = useState('');
+  const [scraping, setScraping] = useState(false);
+  const [scrapeStatus, setScrapeStatus] = useState('');
+  const [scrapeError, setScrapeError] = useState<string | null>(null);
+  const [scrapeSuccessMsg, setScrapeSuccessMsg] = useState<string | null>(null);
+
+  const handleScrapeRewriteUrl = async () => {
+    if (!competitorUrl.trim() || !competitorUrl.startsWith('http')) {
+      setScrapeError('Please enter a valid website URL starting with https:// or http://');
+      return;
+    }
+
+    setScraping(true);
+    setScrapeError(null);
+    setScrapeSuccessMsg(null);
+    setScrapeStatus('1/4 Connecting to competitor website & reading content...');
+
+    try {
+      const res = await fetch('/api/articles/scrape-rewrite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: competitorUrl.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (data.success && data.article) {
+        setScrapeStatus('2/4 Rewriting into aesthetic Cozy listicle...');
+        if (data.article.title) setTopic(data.article.title);
+        if (data.article.category) setCategory(data.article.category);
+        if (data.article.metaDescription) setMetaDescription(data.article.metaDescription);
+        if (data.article.items?.length > 0) setItems(data.article.items);
+
+        setScrapeSuccessMsg(data.message || `Successfully rewritten into ${data.itemsCount} cozy items with Amazon links & images!`);
+        setScrapeStatus('');
+      } else {
+        setScrapeError(data.error || 'Failed to scrape and rewrite the article.');
+        setScrapeStatus('');
+      }
+    } catch (err: any) {
+      setScrapeError(err.message || 'Network error occurred while fetching the URL.');
+      setScrapeStatus('');
+    } finally {
+      setScraping(false);
+    }
+  };
+
+  const handleImportText = async () => {
+    if (!rawInput.trim()) return;
+    setScraping(true);
+    setScrapeError(null);
+    setScrapeSuccessMsg(null);
+    try {
+      const res = await fetch('/api/articles/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawText: rawInput }),
+      });
+      const data = await res.json();
+      if (data.success && data.article) {
+        if (data.article.title) setTopic(data.article.title);
+        if (data.article.category) setCategory(data.article.category);
+        if (data.article.items?.length > 0) setItems(data.article.items);
+        setScrapeSuccessMsg('Text successfully converted into structured items with Amazon search links!');
+      } else {
+        setScrapeError(data.error || 'Failed to process pasted text.');
+      }
+    } catch (err: any) {
+      setScrapeError(err.message || 'Error processing text');
+    } finally {
+      setScraping(false);
+    }
+  };
 
   const handlePresetSelect = (preset: typeof PRESET_TOPICS[0]) => {
     setTopic(preset.title);
@@ -188,6 +265,132 @@ export default function ArticleGeneratorPage() {
             </>
           )}
         </button>
+      </div>
+
+      {/* Competitor URL Scraper & AI Rewriter */}
+      <div className="bg-gradient-to-r from-[#f4ede2] via-[#faf7f2] to-[#f4ede2] p-6 rounded-2xl border-2 border-[#b28867]/50 shadow-md space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#e8dbca] pb-3">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-full bg-[#b28867] text-white text-[11px] font-bold tracking-wider uppercase">
+              AI Powered
+            </span>
+            <h2 className="text-sm font-bold font-serif text-[#2f1f1a]">
+              Competitor Article Scraper & Cozy AI Rewriter
+            </h2>
+          </div>
+
+          {/* Mode Switcher */}
+          <div className="flex items-center gap-1 bg-[#e8dbca]/60 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setImportMode('url')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                importMode === 'url'
+                  ? 'bg-white text-[#2f1f1a] shadow-sm'
+                  : 'text-[#7c5742] hover:text-[#2f1f1a]'
+              }`}
+            >
+              🔗 Paste Article Link (URL)
+            </button>
+            <button
+              type="button"
+              onClick={() => setImportMode('text')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                importMode === 'text'
+                  ? 'bg-white text-[#2f1f1a] shadow-sm'
+                  : 'text-[#7c5742] hover:text-[#2f1f1a]'
+              }`}
+            >
+              📝 Paste Text
+            </button>
+          </div>
+        </div>
+
+        {importMode === 'url' ? (
+          <div className="space-y-3">
+            <p className="text-xs text-[#553c30]">
+              حط هنا <strong>الرابط (URL)</strong> ديال أي مقال من موقع منافس (مثلاً The Spruce، Apartment Therapy، أو أي بلوغ). السيستيم كيقراه كامل، كيعاود يصيغو بأسلوب CozySpace جذاب، كيولد ليه تصاور جمالية، وكيركب روابط أمازون بالتاغ ديالك (<code className="font-mono font-bold text-amber-800">cozyplace04-20</code>) أوتوماتيكياً!
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="url"
+                value={competitorUrl}
+                onChange={(e) => setCompetitorUrl(e.target.value)}
+                placeholder="https://www.thespruce.com/cozy-bedroom-ideas-..."
+                className="flex-1 px-4 py-3 bg-white border border-[#d7c1a8] rounded-xl text-xs text-[#2f1f1a] focus:outline-none focus:ring-2 focus:ring-[#9b7053] placeholder:text-[#a89078] font-mono"
+              />
+              <button
+                type="button"
+                onClick={handleScrapeRewriteUrl}
+                disabled={scraping || !competitorUrl.trim()}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#b28867] to-[#9b7053] hover:from-[#9b7053] hover:to-[#7c5742] text-white text-xs font-bold shadow-md shadow-[#9b7053]/20 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-50 whitespace-nowrap"
+              >
+                <Sparkles className="w-4 h-4 text-amber-200" />
+                {scraping ? 'Scraping & Rewriting...' : '✨ Scrape, AI-Rewrite & Add Amazon Links'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-xs text-[#553c30]">
+              حط هنا المقال ديالك أو نص منسوخ من أي بلاصة، والسيستيم غادي يقسمو لـ فقرات ويركب فيه أزرار أمازون فوراً:
+            </p>
+            <textarea
+              rows={4}
+              value={rawInput}
+              onChange={(e) => setRawInput(e.target.value)}
+              placeholder="Paste article paragraphs here..."
+              className="w-full px-3.5 py-2.5 bg-white border border-[#d7c1a8] rounded-xl text-xs text-[#2f1f1a] focus:outline-none focus:ring-2 focus:ring-[#9b7053]"
+            />
+            <button
+              type="button"
+              onClick={handleImportText}
+              disabled={scraping || !rawInput.trim()}
+              className="px-4 py-2 rounded-xl bg-[#b28867] hover:bg-[#9b7053] text-white text-xs font-bold shadow-sm transition-all disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Convert Text to Listicle
+            </button>
+          </div>
+        )}
+
+        {/* Status indicator while scraping */}
+        {scraping && (
+          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2.5 animate-pulse">
+            <RefreshCw className="w-4 h-4 animate-spin text-amber-700 flex-shrink-0" />
+            <span className="font-medium">{scrapeStatus || 'Processing... Please wait a few seconds.'}</span>
+          </div>
+        )}
+
+        {/* Success message */}
+        {scrapeSuccessMsg && (
+          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <span>{scrapeSuccessMsg}</span>
+            </div>
+            <button 
+              onClick={() => setScrapeSuccessMsg(null)}
+              className="text-xs text-emerald-700 hover:text-emerald-900 font-bold ml-2"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Error message */}
+        {scrapeError && (
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-900 flex items-center justify-between">
+            <span>{scrapeError}</span>
+            <button 
+              onClick={() => setScrapeError(null)}
+              className="text-xs text-red-700 hover:text-red-900 font-bold ml-2"
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Preset Topics */}
