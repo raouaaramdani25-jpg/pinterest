@@ -14,7 +14,7 @@
       "Aesthetic Home"
     ],
     "createdAt": "2026-11-14T17:08:01.473Z",
-    "status": "draft",
+    "status": "published",
     "items": [
       {
         "id": "pantry-item-1",
@@ -136,7 +136,10 @@
         "ctaText": "Check Chalkboard Barn Doors on Amazon",
         "estimatedPrice": "$175 - $290"
       }
-    ]
+    ],
+    "wpPostId": 569,
+    "wpPostUrl": "https://cozyspace.company/10-cozy-pantry-sliding-barn-door-ideas-that-save-space-elevate-tight-kitchens/",
+    "publishedAt": "2026-11-14T17:13:50.549Z"
   },
   {
     "id": "article-1794675101774",

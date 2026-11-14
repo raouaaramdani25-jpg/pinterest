@@ -146,6 +146,47 @@ export default function WordPressPublisherPage() {
                 Publishing Options
               </label>
 
+              {/* Featured Image Box */}
+              {activeArticle.items?.[0]?.imageUrl && (
+                <div className="p-3.5 rounded-xl bg-[#faf7f2] border border-[#d7c1a8] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#553c30] flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#b28867]" />
+                      WordPress Featured Image (الصورة البارزة)
+                    </span>
+                    <span className="text-[10px] text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded font-bold">
+                      Auto-Uploaded
+                    </span>
+                  </div>
+                  <div className="relative aspect-video rounded-lg overflow-hidden border border-[#e8dbca]">
+                    <img
+                      src={activeArticle.items[0].imageUrl}
+                      alt="Featured Thumbnail"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <a
+                      href={activeArticle.items[0].imageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 py-1.5 px-2 bg-white hover:bg-[#f4ede2] border border-[#d7c1a8] rounded-lg text-[11px] font-semibold text-center text-[#2f1f1a] transition-colors"
+                    >
+                      👁️ View / Download
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(activeArticle.items[0].imageUrl);
+                      }}
+                      className="flex-1 py-1.5 px-2 bg-white hover:bg-[#f4ede2] border border-[#d7c1a8] rounded-lg text-[11px] font-semibold text-[#2f1f1a] transition-colors"
+                    >
+                      🔗 Copy Image Link
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
