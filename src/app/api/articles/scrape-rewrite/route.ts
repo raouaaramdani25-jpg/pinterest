@@ -27,6 +27,78 @@ function extractTagContent(html: string, regex: RegExp): string {
   return match && match[1] ? stripHtml(match[1]) : '';
 }
 
+interface AiRewriteResult {
+  title?: string;
+  metaDescription?: string;
+  items?: Array<{
+    title?: string;
+    description?: string;
+  }>;
+}
+
+async function rewriteWithOpenRouter(
+  originalTitle: string,
+  originalDesc: string,
+  items: { title: string; desc: string }[]
+): Promise<AiRewriteResult | null> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey || items.length === 0) {
+    return null;
+  }
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
+      'X-Title': 'CozySpace Automation',
+    },
+    body: JSON.stringify({
+      model: 'nvidia/nemotron-3.5-super-vl:free',
+      temperature: 0.7,
+      max_tokens: 3000,
+      messages: [
+        {
+          role: 'system',
+          content: [
+            'You rewrite home decor content into original, natural English for a cozy lifestyle blog.',
+            'Do not copy the source wording. Keep factual meaning, avoid inventing product specifications, and use an inviting but useful tone.',
+            'Return JSON only, with this exact shape: {"title":"string","metaDescription":"string","items":[{"title":"string","description":"string"}]}.',
+            'Return exactly one item for every input item, in the same order.',
+          ].join(' '),
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            sourceTitle: originalTitle,
+            sourceDescription: originalDesc,
+            items,
+          }),
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenRouter API error: HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (typeof content !== 'string') {
+    throw new Error('OpenRouter returned an empty rewrite response.');
+  }
+
+  const jsonContent = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  const result = JSON.parse(jsonContent) as AiRewriteResult;
+  if (!Array.isArray(result.items) || result.items.length !== items.length) {
+    throw new Error('OpenRouter returned an incomplete rewrite response.');
+  }
+
+  return result;
+}
+
 // Smart Cozy Text Rewriter
 function rewriteToCozyTone(itemTitle: string, rawDesc: string): string {
   const cleanTitle = itemTitle.replace(/^[\d\.\s#\-]+/, '').trim();
@@ -153,10 +225,23 @@ export async function POST(req: Request) {
       }
     }
 
+    let aiRewrite: AiRewriteResult | null = null;
+    let usedAiRewrite = false;
+    if (process.env.OPENROUTER_API_KEY) {
+      try {
+        aiRewrite = await rewriteWithOpenRouter(originalTitle, originalDesc, itemsToProcess);
+        usedAiRewrite = Boolean(aiRewrite);
+      } catch (aiError) {
+        console.warn('OpenRouter rewrite failed; using local fallback:', aiError);
+      }
+    }
+
     // 4. Construct Rewritten Listicle Items with Amazon Links & Aesthetic Images
     const rewrittenItems: ArticleItem[] = itemsToProcess.map((item, idx) => {
-      const cleanTitle = item.title.replace(/^[\d\.\s#\-]+/, '').trim();
-      const rewrittenDescription = rewriteToCozyTone(cleanTitle, item.desc);
+      const sourceTitle = item.title.replace(/^[\d\.\s#\-]+/, '').trim();
+      const cleanTitle = aiRewrite?.items?.[idx]?.title?.trim() || sourceTitle;
+      const rewrittenDescription =
+        aiRewrite?.items?.[idx]?.description?.trim() || rewriteToCozyTone(cleanTitle, item.desc);
       
       // Match aesthetic AI image (Flux Model) and Midjourney/Gemini prompt
       const imageMatch = matchCozyImage(cleanTitle, item.desc, idx);
@@ -210,8 +295,12 @@ export async function POST(req: Request) {
       });
     }
 
-    const rewrittenTitle = `10 Cozy ${originalTitle.replace(/^(the|top|best|\d+)\s*/i, '')} Ideas You'll Want to Copy Immediately`;
-    const metaDescription = `Transform your space with these aesthetic, cozy ${originalTitle.toLowerCase()} ideas. From warm lighting to tactile textiles, here are our favorite budget-friendly Amazon finds.`;
+    const rewrittenTitle =
+      aiRewrite?.title?.trim() ||
+      `10 Cozy ${originalTitle.replace(/^(the|top|best|\d+)\s*/i, '')} Ideas You'll Want to Copy Immediately`;
+    const metaDescription =
+      aiRewrite?.metaDescription?.trim() ||
+      `Transform your space with these aesthetic, cozy ${originalTitle.toLowerCase()} ideas. From warm lighting to tactile textiles, here are our favorite budget-friendly Amazon finds.`;
 
     const rewrittenArticle: Article = {
       id: `scraped-${Date.now()}`,
@@ -231,7 +320,7 @@ export async function POST(req: Request) {
       sourceUrl: url,
       originalTitle,
       itemsCount: rewrittenItems.length,
-      message: `Successfully scraped and rewritten "${originalTitle}" into ${rewrittenItems.length} cozy listicle items with Amazon links & images!`,
+      message: `Successfully scraped and ${usedAiRewrite ? 'AI-rewritten with OpenRouter' : 'rewritten with the local fallback'} "${originalTitle}" into ${rewrittenItems.length} cozy listicle items with Amazon links & images!`,
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
