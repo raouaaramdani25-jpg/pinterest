@@ -24,6 +24,7 @@ function PinStudioContent() {
   const [textColor, setTextColor] = useState('#2f1f1a');
   const [accentColor, setAccentColor] = useState('#b28867');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
   const [imagePrompts, setImagePrompts] = useState<string[]>([]);
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -65,6 +66,7 @@ function PinStudioContent() {
     setPinTitle(article.title);
     setPinSubtitle(`${article.items?.length || 10} Aesthetic Decor Pieces for a Warm Home`);
     const imgs = article.items?.map((i) => normalizeImageUrl(i.imageUrl)).filter(Boolean) || [];
+    setPreviewIndex(0);
     setImagePrompts(article.items?.map((item) => item.imagePrompt || item.description) || []);
     setSelectedImages(imgs.length > 0 ? imgs : [
       'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1000&q=80',
@@ -336,6 +338,7 @@ function PinStudioContent() {
       const nextImages = [...selectedImages];
       nextImages[index] = data.imageUrl;
       setSelectedImages(nextImages);
+      setPreviewIndex(index);
 
       const updatedArticle: Article = {
         ...selectedArticle,
@@ -535,11 +538,35 @@ function PinStudioContent() {
             <p className="text-[11px] text-[#7c5742]">
               عدّل الـ prompt باش تبدل الجو، الألوان، أو composition ديال أي صورة.
             </p>
+            {selectedImages[previewIndex] && (
+              <div className="rounded-lg border border-[#d7c1a8] bg-white p-2 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#9b7053]">
+                    Selected image preview
+                  </span>
+                  <span className="text-[10px] text-[#7c5742]">
+                    Image {previewIndex + 1}
+                  </span>
+                </div>
+                <img
+                  src={previewImageUrl(selectedImages[previewIndex])}
+                  alt={`Selected preview for image ${previewIndex + 1}`}
+                  className="w-full h-40 rounded-md object-cover border border-[#e8dbca]"
+                />
+              </div>
+            )}
             <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
               {selectedImages.map((image, index) => (
                 <div key={`${image}-${index}`} className="p-2.5 rounded-lg bg-white border border-[#e8dbca] space-y-2">
                   <div className="flex items-center gap-2">
-                    <div className="relative w-28 h-20 shrink-0 rounded-md overflow-hidden border border-[#e8dbca] bg-[#f4ede2] flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewIndex(index)}
+                      className={`relative w-28 h-20 shrink-0 rounded-md overflow-hidden border bg-[#f4ede2] flex items-center justify-center ${
+                        previewIndex === index ? 'border-[#9b7053] ring-2 ring-[#d7c1a8]' : 'border-[#e8dbca]'
+                      }`}
+                      aria-label={`Preview image ${index + 1}`}
+                    >
                       <img
                         src={previewImageUrl(image)}
                         alt={`Preview for image ${index + 1}`}
@@ -549,7 +576,7 @@ function PinStudioContent() {
                         }}
                       />
                       <ImageIcon className="absolute w-6 h-6 text-[#b28867]" />
-                    </div>
+                    </button>
                     <span className="text-[11px] font-semibold leading-relaxed text-[#553c30]">
                       Image {index + 1}{selectedArticle?.items?.[index]?.title ? ` · ${selectedArticle.items[index].title}` : ''}
                     </span>
