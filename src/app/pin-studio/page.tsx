@@ -24,6 +24,9 @@ function PinStudioContent() {
   const [textColor, setTextColor] = useState('#2f1f1a');
   const [accentColor, setAccentColor] = useState('#b28867');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [imagePrompts, setImagePrompts] = useState<string[]>([]);
+  const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [copiedTitle, setCopiedTitle] = useState(false);
   const [copiedDesc, setCopiedDesc] = useState(false);
 
@@ -47,6 +50,7 @@ function PinStudioContent() {
     setPinTitle(article.title);
     setPinSubtitle(`${article.items?.length || 10} Aesthetic Decor Pieces for a Warm Home`);
     const imgs = article.items?.map((i) => i.imageUrl).filter(Boolean) || [];
+    setImagePrompts(article.items?.map((item) => item.imagePrompt || item.description) || []);
     setSelectedImages(imgs.length > 0 ? imgs : [
       'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1000&q=80',
       'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=1000&q=80',
@@ -293,6 +297,55 @@ function PinStudioContent() {
     }
   };
 
+  const handleRegenerateImage = async (index: number) => {
+    const item = selectedArticle?.items?.[index];
+    const imageUrl = selectedImages[index];
+    if (!item || !imageUrl) return;
+
+    setRegeneratingIndex(index);
+    setImageError(null);
+    try {
+      const response = await fetch('/api/images/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...item,
+          imageUrl,
+          customPrompt: imagePrompts[index],
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Image regeneration failed.');
+      }
+
+      const nextImages = [...selectedImages];
+      nextImages[index] = data.imageUrl;
+      setSelectedImages(nextImages);
+
+      const updatedArticle: Article = {
+        ...selectedArticle,
+        items: selectedArticle.items.map((articleItem, itemIndex) =>
+          itemIndex === index ? { ...articleItem, imageUrl: data.imageUrl } : articleItem
+        ),
+      };
+      const saveResponse = await fetch('/api/articles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedArticle),
+      });
+      const saveData = await saveResponse.json();
+      if (!saveResponse.ok || !saveData.success) {
+        throw new Error(saveData.error || 'The new image could not be saved to the article.');
+      }
+      setSelectedArticle(updatedArticle);
+    } catch (error: any) {
+      setImageError(error.message || 'Image regeneration failed.');
+    } finally {
+      setRegeneratingIndex(null);
+    }
+  };
+
   const seoPinDescription = `${pinTitle} ☕✨ Transform your home with these aesthetic, cozy decor ideas and affordable Amazon finds! Read the full shopping guide and shop the look at cozyspace.company.\n\n#cozyhome #readingnook #amazonhome #homedecorideas #aestheticroom #cozyvibes #apartmentdecor #livingroomdecor`;
 
   return (
@@ -454,6 +507,57 @@ function PinStudioContent() {
                 Sage Green
               </button>
             </div>
+          </div>
+
+          {/* AI Image Regeneration */}
+          <div className="space-y-3 p-4 rounded-xl bg-[#faf7f2] border border-[#e8dbca]">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-[#7c5742] uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-[#9b7053]" />
+                AI Image Regeneration
+              </label>
+              <span className="text-[10px] text-[#9b7053]">Google → Cloudflare → Recraft</span>
+            </div>
+            <p className="text-[11px] text-[#7c5742]">
+              عدّل الـ prompt باش تبدل الجو، الألوان، أو composition ديال أي صورة.
+            </p>
+            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+              {selectedImages.map((image, index) => (
+                <div key={`${image}-${index}`} className="p-2.5 rounded-lg bg-white border border-[#e8dbca] space-y-2">
+                  <div className="flex items-center gap-2">
+                    <img src={image} alt="" className="w-12 h-12 rounded-md object-cover border border-[#e8dbca]" />
+                    <span className="text-[11px] font-semibold text-[#553c30]">
+                      Image {index + 1}{selectedArticle?.items?.[index]?.title ? ` · ${selectedArticle.items[index].title}` : ''}
+                    </span>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={imagePrompts[index] || ''}
+                    onChange={(event) => {
+                      const nextPrompts = [...imagePrompts];
+                      nextPrompts[index] = event.target.value;
+                      setImagePrompts(nextPrompts);
+                    }}
+                    placeholder="Example: warm beige palette, natural sunlight, editorial interior photography"
+                    className="w-full px-2.5 py-2 bg-[#faf7f2] border border-[#d7c1a8] rounded-lg text-[11px] text-[#2f1f1a] focus:outline-none focus:ring-2 focus:ring-[#9b7053]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRegenerateImage(index)}
+                    disabled={regeneratingIndex !== null}
+                    className="w-full py-2 px-3 rounded-lg bg-[#553c30] hover:bg-[#7c5742] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${regeneratingIndex === index ? 'animate-spin' : ''}`} />
+                    {regeneratingIndex === index ? 'Generating...' : 'Regenerate with AI'}
+                  </button>
+                </div>
+              ))}
+            </div>
+            {imageError && (
+              <p className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg p-2">
+                {imageError}
+              </p>
+            )}
           </div>
 
           {/* Download Action */}
