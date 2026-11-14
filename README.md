@@ -56,5 +56,6 @@ A complete, automated system designed specifically for **CozySpace** to turn Pin
 - **WordPress Username:** `CozySpaceApp`
 - **Application Password:** `WfSP R4rl v3Aq DDaD jksn Iy2l`
 - **Amazon Tag:** `cozyplace04-20`
+- **OpenRouter:** Set `OPENROUTER_API_KEY` in `.env.local` to enable AI rewriting with `nvidia/nemotron-3.5-super-vl:free`.
 
 تقدر تبدلهم أو تيستي الاتصال من صفحة **Settings** فـ الـ Dashboard فـ أي وقت!

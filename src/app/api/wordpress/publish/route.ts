@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { publishToWordPress } from '@/lib/wordpress';
+import { publishToWordPress } from '@/lib/wordpress-server';
 import { getArticles, saveArticle } from '@/lib/storage';
 import { Article } from '@/types';
 import fs from 'fs';

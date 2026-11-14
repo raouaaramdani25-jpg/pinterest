@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Globe, CheckCircle2, Clock, ExternalLink, Send, 
-  Eye, ShieldCheck, RefreshCw, AlertCircle, Copy, Check 
+  Eye, ShieldCheck, RefreshCw, AlertCircle, Copy, Check, Sparkles
 } from 'lucide-react';
 import { Article } from '@/types';
 import { formatArticleForWordPress } from '@/lib/wordpress';
