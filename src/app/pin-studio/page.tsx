@@ -105,6 +105,7 @@ function PinStudioContent() {
       });
     };
 
+    let cancelled = false;
     const drawHelper = async () => {
       const getSelectedImage = (offset: number, fallback: string) => {
         if (selectedImages.length === 0) return fallback;
@@ -119,6 +120,8 @@ function PinStudioContent() {
         loadImage(img2Url),
         loadImage(img3Url),
       ]);
+
+      if (cancelled) return;
 
       if (template === 'hero') {
         // Single Hero Image full height
@@ -264,6 +267,9 @@ function PinStudioContent() {
     };
 
     drawHelper();
+    return () => {
+      cancelled = true;
+    };
   }, [template, pinTitle, pinSubtitle, brandText, badgeColor, textColor, accentColor, selectedImages, previewIndex]);
 
   // Helper: rounded rectangle
