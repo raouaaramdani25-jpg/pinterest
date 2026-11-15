@@ -26,6 +26,7 @@ function PinStudioContent() {
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [imagePrompts, setImagePrompts] = useState<string[]>([]);
+  const [imageProvider, setImageProvider] = useState<'auto' | 'google' | 'cloudflare' | 'recraft'>('auto');
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [copiedTitle, setCopiedTitle] = useState(false);
@@ -338,6 +339,7 @@ function PinStudioContent() {
           ...item,
           imageUrl,
           customPrompt: imagePrompts[index],
+          provider: imageProvider,
         }),
       });
       const data = await response.json();
@@ -552,6 +554,20 @@ function PinStudioContent() {
               </label>
               <span className="text-[10px] text-[#9b7053]">Google → Cloudflare → Recraft</span>
             </div>
+            <select
+              value={imageProvider}
+              onChange={(event) => {
+                setImageProvider(event.target.value as 'auto' | 'google' | 'cloudflare' | 'recraft');
+                setImageError(null);
+              }}
+              className="w-full rounded-lg border border-[#d7c1a8] bg-white px-2.5 py-2 text-[11px] font-semibold text-[#553c30]"
+              aria-label="Image generation provider"
+            >
+              <option value="auto">Auto fallback</option>
+              <option value="cloudflare">Cloudflare FLUX</option>
+              <option value="google">Google Gemini</option>
+              <option value="recraft">OpenRouter Recraft</option>
+            </select>
             <div className="flex flex-wrap gap-1.5 text-[10px] text-[#7c5742]">
               <span className="px-2 py-0.5 rounded bg-white border border-[#e8dbca]">
                 Text: {selectedArticle?.textAiProvider || 'Unknown'} / {selectedArticle?.textAiModel || 'Not recorded'}

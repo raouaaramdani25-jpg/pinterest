@@ -143,6 +143,52 @@ async function callCloudflareImageModel(
   };
 }
 
+async function describeImageWithOpenRouter(
+  prompt: string,
+  sourceImage: GeneratedImage
+): Promise<string | null> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return null;
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
+      'X-Title': 'CozySpace Automation',
+    },
+    body: JSON.stringify({
+      model: 'nvidia/nemotron-3.5-super-vl:free',
+      temperature: 0.3,
+      max_tokens: 500,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: `Describe this image as a detailed image-generation prompt. Keep the same subject, layout, materials, colors, lighting, camera angle, and mood. ${prompt}`,
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:${sourceImage.mimeType};base64,${sourceImage.data.toString('base64')}`,
+            },
+          },
+        ],
+      }],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenRouter image description returned HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  return typeof content === 'string' && content.trim() ? content.trim() : null;
+}
+
 async function generateWithCloudflare(
   prompt: string,
   sourceImage: GeneratedImage
@@ -184,28 +230,38 @@ async function generateWithCloudflare(
     img2imgError = new Error('Cloudflare requires a valid image input up to 10MB.');
   }
 
+  let textToImagePrompt = prompt;
   try {
-    const openRouterFallback = await generateWithRecraft(prompt);
-    if (openRouterFallback) return openRouterFallback;
-  } catch (error) {
-    console.warn('OpenRouter fallback failed after Cloudflare img2img:', error);
-  }
+    if (sourceImage.mimeType.startsWith('image/')) {
+      const describedPrompt = await describeImageWithOpenRouter(prompt, sourceImage);
+      if (describedPrompt) {
+        textToImagePrompt = `${prompt} Preserve this visual reference: ${describedPrompt}`;
+      }
+    }
 
-  try {
     return await callCloudflareImageModel(
       CLOUDFLARE_TEXT_MODEL,
       {
-        prompt: `${prompt} Create a new original image with a similar subject and mood.`,
+        prompt: `${textToImagePrompt} Create a new original image with a similar subject and mood.`,
         num_steps: 4,
       },
       accountId,
       apiToken
     );
   } catch (textToImageError) {
-    throw new Error(
-      `Cloudflare img2img failed: ${img2imgError instanceof Error ? img2imgError.message : String(img2imgError)}. ` +
-      `Cloudflare text-to-image fallback failed: ${textToImageError instanceof Error ? textToImageError.message : String(textToImageError)}`
-    );
+    console.warn('Cloudflare text-to-image fallback failed; trying OpenRouter image generation:', textToImageError);
+    try {
+      const openRouterFallback = await generateWithRecraft(textToImagePrompt);
+      if (openRouterFallback) return openRouterFallback;
+    } catch (openRouterError) {
+      throw new Error(
+        `Cloudflare img2img failed: ${img2imgError instanceof Error ? img2imgError.message : String(img2imgError)}. ` +
+        `Cloudflare text-to-image failed: ${textToImageError instanceof Error ? textToImageError.message : String(textToImageError)}. ` +
+        `OpenRouter fallback failed: ${openRouterError instanceof Error ? openRouterError.message : String(openRouterError)}`
+      );
+    }
+
+    throw textToImageError;
   }
 }
 
@@ -276,7 +332,12 @@ export async function generateReplacementImage(
 
   const providers = {
     google: () => sourceImage ? generateWithGoogle(prompt, sourceImage) : null,
-    cloudflare: () => sourceImage ? generateWithCloudflare(prompt, sourceImage) : null,
+    cloudflare: () => {
+      if (!process.env.CLOUDFLARE_ACCOUNT_ID || !process.env.CLOUDFLARE_API_TOKEN) {
+        throw new Error('Cloudflare is not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.');
+      }
+      return sourceImage ? generateWithCloudflare(prompt, sourceImage) : null;
+    },
     recraft: () => generateWithRecraft(prompt),
   };
   const providerOrder = preferredProvider === 'auto'
