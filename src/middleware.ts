@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionCookieName, verifyDashboardSession } from './src/lib/dashboard-auth';
+import { getSessionCookieName, verifyDashboardSession } from './lib/dashboard-auth';
 
 const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout'];
 
