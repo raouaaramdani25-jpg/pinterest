@@ -42,7 +42,10 @@ export function formatArticleForWordPress(article: Article): string {
     if (item.imageUrl) {
       content += `<!-- wp:image {"sizeSlug":"large","linkDestination":"none"} -->\n`;
       content += `<figure class="wp-block-image size-large" style="margin:20px 0;">\n`;
-      content += `  <img src="${item.imageUrl}" alt="${item.title.replace(/"/g, '&quot;')}" style="border-radius:10px;width:100%;max-width:820px;height:auto;box-shadow:0 6px 18px rgba(0,0,0,0.06);display:block;" />\n`;
+      const cropPosition = ['center', 'top', 'bottom', 'left', 'right'].includes(item.imageCropPosition || '')
+        ? item.imageCropPosition
+        : 'center';
+      content += `  <img src="${item.imageUrl}" alt="${item.title.replace(/"/g, '&quot;')}" style="border-radius:10px;width:100%;max-width:820px;height:auto;object-fit:cover;object-position:${cropPosition};box-shadow:0 6px 18px rgba(0,0,0,0.06);display:block;" />\n`;
       content += `</figure>\n`;
       content += `<!-- /wp:image -->\n\n`;
     }

@@ -17,6 +17,10 @@ export default function WordPressPublisherPage() {
   const [result, setResult] = useState<{ success: boolean; message: string; url?: string } | null>(null);
   const [copiedGutenberg, setCopiedGutenberg] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [featuredProvider, setFeaturedProvider] = useState('auto');
+  const [featuredPrompt, setFeaturedPrompt] = useState('');
+  const [featuredCrop, setFeaturedCrop] = useState<'center' | 'top' | 'bottom' | 'left' | 'right'>('center');
+  const [featuredAction, setFeaturedAction] = useState(false);
 
   const fetchArticles = async () => {
     try {
@@ -109,6 +113,76 @@ export default function WordPressPublisherPage() {
     }
   };
 
+  const saveFeaturedArticle = async (itemUpdate: Partial<Article['items'][number]>) => {
+    if (!activeArticle?.items?.[0]) return;
+    const updatedArticle: Article = {
+      ...activeArticle,
+      items: activeArticle.items.map((item, index) => index === 0 ? { ...item, ...itemUpdate } : item),
+    };
+    const response = await fetch('/api/articles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedArticle),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || 'Could not save the featured image.');
+    setActiveArticle(updatedArticle);
+    setArticles((current) => current.map((article) => article.id === updatedArticle.id ? updatedArticle : article));
+  };
+
+  const regenerateFeaturedImage = async () => {
+    if (!activeArticle?.items?.[0]?.imageUrl) return;
+    setFeaturedAction(true);
+    setResult(null);
+    try {
+      const item = activeArticle.items[0];
+      const response = await fetch('/api/images/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...item,
+          customPrompt: featuredPrompt || item.imagePrompt || item.description,
+          provider: featuredProvider,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Featured image generation failed.');
+      await saveFeaturedArticle({
+        imageUrl: data.imageUrl,
+        imageAiProvider: data.imageAiProvider,
+        imageAiModel: data.imageAiModel,
+        imageCropPosition: featuredCrop,
+      });
+    } catch (error: any) {
+      setResult({ success: false, message: error.message || 'Featured image generation failed.' });
+    } finally {
+      setFeaturedAction(false);
+    }
+  };
+
+  const uploadFeaturedImage = async (file: File) => {
+    setFeaturedAction(true);
+    setResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('previousUrl', activeArticle?.items?.[0]?.imageUrl || '');
+      const response = await fetch('/api/images/upload', { method: 'POST', body: formData });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Featured image upload failed.');
+      await saveFeaturedArticle({
+        imageUrl: data.imageUrl,
+        imageAiProvider: data.imageAiProvider,
+        imageAiModel: data.imageAiModel,
+        imageCropPosition: featuredCrop,
+      });
+    } catch (error: any) {
+      setResult({ success: false, message: error.message || 'Featured image upload failed.' });
+    } finally {
+      setFeaturedAction(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -198,6 +272,7 @@ export default function WordPressPublisherPage() {
                       src={activeArticle.items[0].imageUrl}
                       alt="Featured Thumbnail"
                       className="w-full h-full object-cover"
+                      style={{ objectPosition: activeArticle.items[0].imageCropPosition || featuredCrop }}
                     />
                   </div>
                   <div className="flex items-center gap-2 pt-1">
@@ -223,6 +298,65 @@ export default function WordPressPublisherPage() {
                     Image AI: {activeArticle.items[0].imageAiProvider || 'Original / not recorded'}
                     {activeArticle.items[0].imageAiModel ? ` · ${activeArticle.items[0].imageAiModel}` : ''}
                   </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-[#e8dbca]">
+                    <select
+                      value={featuredProvider}
+                      onChange={(event) => setFeaturedProvider(event.target.value)}
+                      className="px-2 py-1.5 rounded-lg border border-[#d7c1a8] text-[10px] text-[#2f1f1a] bg-white"
+                    >
+                      <option value="auto">Auto fallback</option>
+                      <option value="google">Google Gemini</option>
+                      <option value="cloudflare">Cloudflare Workers AI</option>
+                      <option value="recraft">Recraft via OpenRouter</option>
+                    </select>
+                    <select
+                      value={featuredCrop}
+                      onChange={(event) => {
+                        const value = event.target.value as typeof featuredCrop;
+                        setFeaturedCrop(value);
+                        void saveFeaturedArticle({ imageCropPosition: value }).catch((error: any) => {
+                          setResult({ success: false, message: error.message || 'Could not save crop position.' });
+                        });
+                      }}
+                      className="px-2 py-1.5 rounded-lg border border-[#d7c1a8] text-[10px] text-[#2f1f1a] bg-white"
+                    >
+                      <option value="center">Crop: Center</option>
+                      <option value="top">Crop: Top</option>
+                      <option value="bottom">Crop: Bottom</option>
+                      <option value="left">Crop: Left</option>
+                      <option value="right">Crop: Right</option>
+                    </select>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={featuredPrompt}
+                    onChange={(event) => setFeaturedPrompt(event.target.value)}
+                    placeholder="Modification prompt: warm daylight, cleaner composition, keep the same pantry theme..."
+                    className="w-full px-2.5 py-2 rounded-lg border border-[#d7c1a8] text-[10px] text-[#2f1f1a] bg-white"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={regenerateFeaturedImage}
+                      disabled={featuredAction}
+                      className="py-2 rounded-lg bg-[#553c30] text-white text-[10px] font-bold disabled:opacity-50"
+                    >
+                      {featuredAction ? 'Working...' : 'Generate same-topic image'}
+                    </button>
+                    <label className="py-2 rounded-lg border border-[#d7c1a8] bg-white text-[#553c30] text-[10px] font-bold text-center cursor-pointer">
+                      Upload replacement
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void uploadFeaturedImage(file);
+                          event.currentTarget.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
               )}
 

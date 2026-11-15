@@ -7,6 +7,7 @@ export interface ArticleItem {
   imagePrompt: string;
   imageAiProvider?: string;
   imageAiModel?: string;
+  imageCropPosition?: 'center' | 'top' | 'bottom' | 'left' | 'right';
   textAiProvider?: string;
   textAiModel?: string;
   amazonKeyword: string;
