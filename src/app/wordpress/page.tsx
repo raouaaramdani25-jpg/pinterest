@@ -21,6 +21,8 @@ export default function WordPressPublisherPage() {
   const [featuredPrompt, setFeaturedPrompt] = useState('');
   const [featuredCrop, setFeaturedCrop] = useState<'center' | 'top' | 'bottom' | 'left' | 'right'>('center');
   const [featuredAction, setFeaturedAction] = useState(false);
+  const [previewImageProviders, setPreviewImageProviders] = useState<Record<number, string>>({});
+  const [previewImageActionIndex, setPreviewImageActionIndex] = useState<number | null>(null);
 
   const fetchArticles = async () => {
     try {
@@ -113,11 +115,11 @@ export default function WordPressPublisherPage() {
     }
   };
 
-  const saveFeaturedArticle = async (itemUpdate: Partial<Article['items'][number]>) => {
-    if (!activeArticle?.items?.[0]) return;
+  const saveArticleItem = async (index: number, itemUpdate: Partial<Article['items'][number]>) => {
+    if (!activeArticle?.items?.[index]) return;
     const updatedArticle: Article = {
       ...activeArticle,
-      items: activeArticle.items.map((item, index) => index === 0 ? { ...item, ...itemUpdate } : item),
+      items: activeArticle.items.map((item, itemIndex) => itemIndex === index ? { ...item, ...itemUpdate } : item),
     };
     const response = await fetch('/api/articles', {
       method: 'POST',
@@ -129,6 +131,8 @@ export default function WordPressPublisherPage() {
     setActiveArticle(updatedArticle);
     setArticles((current) => current.map((article) => article.id === updatedArticle.id ? updatedArticle : article));
   };
+
+  const saveFeaturedArticle = (itemUpdate: Partial<Article['items'][number]>) => saveArticleItem(0, itemUpdate);
 
   const regenerateFeaturedImage = async () => {
     if (!activeArticle?.items?.[0]?.imageUrl) return;
@@ -180,6 +184,35 @@ export default function WordPressPublisherPage() {
       setResult({ success: false, message: error.message || 'Featured image upload failed.' });
     } finally {
       setFeaturedAction(false);
+    }
+  };
+
+  const regeneratePreviewImage = async (index: number) => {
+    if (!activeArticle?.items?.[index]?.imageUrl) return;
+    setPreviewImageActionIndex(index);
+    setResult(null);
+    try {
+      const item = activeArticle.items[index];
+      const response = await fetch('/api/images/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...item,
+          customPrompt: item.imagePrompt || item.description,
+          provider: previewImageProviders[index] || 'auto',
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Image generation failed.');
+      await saveArticleItem(index, {
+        imageUrl: data.imageUrl,
+        imageAiProvider: data.imageAiProvider,
+        imageAiModel: data.imageAiModel,
+      });
+    } catch (error: any) {
+      setResult({ success: false, message: error.message || 'Image generation failed.' });
+    } finally {
+      setPreviewImageActionIndex(null);
     }
   };
 
@@ -499,11 +532,76 @@ export default function WordPressPublisherPage() {
                 {activeArticle.textAiModel ? ` · ${activeArticle.textAiModel}` : ''}
               </div>
 
-              {/* Rendered HTML content as it will appear in Astra */}
-              <div 
-                className="prose prose-stone max-w-none text-sm text-[#443329]"
-                dangerouslySetInnerHTML={{ __html: formatArticleForWordPress(activeArticle) }}
-              />
+              <div className="prose prose-stone max-w-none text-sm text-[#443329]">
+                <div className="rounded-lg border-l-4 border-[#b28867] bg-[#f4ede2] p-4 text-sm leading-relaxed">
+                  <strong>Transparency Disclosure:</strong> Some of the links below are affiliate links. As an Amazon Associate, CozySpace earns from qualifying purchases if you choose to buy through these links, at zero additional cost to you.
+                </div>
+
+                <p className="mt-8 text-[1.05rem] leading-[1.85] text-[#2f1f1a]">
+                  {activeArticle.metaDescription}
+                </p>
+
+                {activeArticle.items.map((item, index) => (
+                  <section key={item.id || index} className="mt-10">
+                    <h2 className="mb-3 text-2xl font-bold text-[#553c30]">
+                      {item.itemNumber || index + 1}. {item.title}
+                    </h2>
+                    {item.imageUrl && (
+                      <div className="space-y-2">
+                        <img
+                          src={item.imageUrl}
+                          alt={item.title}
+                          className="w-full rounded-[10px] object-cover shadow-sm"
+                          style={{ objectPosition: item.imageCropPosition || 'center' }}
+                        />
+                        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#e8dbca] bg-[#faf7f2] p-2">
+                          <select
+                            value={previewImageProviders[index] || 'auto'}
+                            onChange={(event) => setPreviewImageProviders({
+                              ...previewImageProviders,
+                              [index]: event.target.value,
+                            })}
+                            className="min-w-[150px] flex-1 rounded-lg border border-[#d7c1a8] bg-white px-2 py-1.5 text-[10px] text-[#2f1f1a]"
+                            aria-label={`Image AI provider for preview image ${index + 1}`}
+                          >
+                            <option value="auto">Auto fallback</option>
+                            <option value="google">Google Gemini</option>
+                            <option value="cloudflare">Cloudflare Workers AI</option>
+                            <option value="recraft">Recraft via OpenRouter</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => void regeneratePreviewImage(index)}
+                            disabled={previewImageActionIndex !== null}
+                            className="rounded-lg bg-[#553c30] px-3 py-1.5 text-[10px] font-bold text-white disabled:opacity-50"
+                          >
+                            {previewImageActionIndex === index ? 'Generating...' : 'Regenerate with AI'}
+                          </button>
+                          <span className="w-full text-[10px] text-[#7c5742]">
+                            AI: {item.imageAiProvider || 'Original / not recorded'}
+                            {item.imageAiModel ? ` · ${item.imageAiModel}` : ''}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    <p className="mt-4 leading-[1.85] text-[#443329]">{item.description}</p>
+                    <a
+                      href={item.directAmazonUrl || item.amazonSearchUrl}
+                      target="_blank"
+                      rel="nofollow sponsored noopener noreferrer"
+                      className="mt-4 inline-flex rounded-full bg-[#ff9900] px-6 py-3 text-sm font-bold text-[#111] shadow-sm"
+                    >
+                      🛒 {item.ctaText || `Check Price on Amazon: ${item.amazonKeyword}`}
+                    </a>
+                    <hr className="my-9 border-0 border-t border-dashed border-[#d7c1a8]" />
+                  </section>
+                ))}
+
+                <h3 className="mt-8 text-xl font-bold text-[#553c30]">Love These Cozy Ideas? Save This Pin!</h3>
+                <p className="leading-[1.75] text-[#443329]">
+                  Be sure to save this post to your favorite <strong>Home Decor & Cozy Living</strong> boards on Pinterest so you can always come back when you&apos;re ready to refresh your space!
+                </p>
+              </div>
             </div>
           ) : (
             <div className="text-center py-12 text-[#7c5742] text-xs">
