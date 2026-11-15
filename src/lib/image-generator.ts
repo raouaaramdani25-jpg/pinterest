@@ -177,7 +177,10 @@ async function callCloudflareImageModel(
 }
 
 async function generateWithHuggingFace(prompt: string): Promise<GeneratedImage | null> {
-  const token = process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN;
+  const token =
+    process.env.HUGGINGFACE_API_KEY ||
+    process.env.HF_ACCESS_TOKEN ||
+    process.env.HF_TOKEN;
   if (!token) return null;
 
   const response = await fetch(

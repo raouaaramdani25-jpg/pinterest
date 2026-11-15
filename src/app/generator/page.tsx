@@ -95,6 +95,7 @@ export default function ArticleGeneratorPage() {
   const [scrapeStatus, setScrapeStatus] = useState('');
   const [scrapeError, setScrapeError] = useState<string | null>(null);
   const [scrapeSuccessMsg, setScrapeSuccessMsg] = useState<string | null>(null);
+  const [rewriteProvider, setRewriteProvider] = useState('auto');
   const [imageProviders, setImageProviders] = useState<Record<number, string>>({});
   const [imageActionIndex, setImageActionIndex] = useState<number | null>(null);
 
@@ -113,7 +114,10 @@ export default function ArticleGeneratorPage() {
       const res = await fetch('/api/articles/scrape-rewrite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: competitorUrl.trim() }),
+        body: JSON.stringify({
+          url: competitorUrl.trim(),
+          rewriteProvider,
+        }),
       });
 
       const data = await res.json();
@@ -348,6 +352,23 @@ export default function ArticleGeneratorPage() {
               Competitor Article Scraper & Cozy AI Rewriter
             </h2>
           </div>
+
+          <label className="flex items-center gap-2 text-xs font-semibold text-[#553c30]">
+            <span>Rewrite AI:</span>
+            <select
+              value={rewriteProvider}
+              onChange={(e) => setRewriteProvider(e.target.value)}
+              className="rounded-lg border border-[#d7c1a8] bg-white px-2.5 py-1.5 text-xs text-[#2f1f1a] focus:outline-none focus:ring-2 focus:ring-[#9b7053]"
+              aria-label="Article rewrite AI provider"
+            >
+              <option value="auto">Auto fallback</option>
+              <option value="gemini">Google Gemini</option>
+              <option value="groq">Groq</option>
+              <option value="cerebras">Cerebras</option>
+              <option value="cloudflare">Cloudflare Workers AI</option>
+              <option value="openrouter">OpenRouter</option>
+            </select>
+          </label>
 
           {/* Mode Switcher */}
           <div className="flex items-center gap-1 bg-[#e8dbca]/60 p-1 rounded-xl">
