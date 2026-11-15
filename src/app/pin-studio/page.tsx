@@ -107,9 +107,13 @@ function PinStudioContent() {
 
     let cancelled = false;
     const drawHelper = async () => {
-      const img1Url = selectedImages[0] || 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1000&q=80';
-      const img2Url = selectedImages[1] || 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=1000&q=80';
-      const img3Url = selectedImages[2] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=80';
+      const getPreviewImage = (offset: number, fallback: string) => {
+        if (selectedImages.length === 0) return fallback;
+        return selectedImages[(previewIndex + offset) % selectedImages.length] || fallback;
+      };
+      const img1Url = getPreviewImage(0, 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1000&q=80');
+      const img2Url = getPreviewImage(1, 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=1000&q=80');
+      const img3Url = getPreviewImage(2, 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=80');
 
       const [img1, img2, img3] = await Promise.all([
         loadImage(img1Url),
@@ -266,7 +270,7 @@ function PinStudioContent() {
     return () => {
       cancelled = true;
     };
-  }, [template, pinTitle, pinSubtitle, brandText, badgeColor, textColor, accentColor, selectedImages]);
+  }, [template, pinTitle, pinSubtitle, brandText, badgeColor, textColor, accentColor, selectedImages, previewIndex]);
 
   // Helper: rounded rectangle
   function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -544,23 +548,6 @@ function PinStudioContent() {
             <p className="text-[11px] text-[#7c5742]">
               عدّل الـ prompt باش تبدل الجو، الألوان، أو composition ديال أي صورة.
             </p>
-            {selectedImages[previewIndex] && (
-              <div className="rounded-lg border border-[#d7c1a8] bg-white p-2 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#9b7053]">
-                    Selected image preview
-                  </span>
-                  <span className="text-[10px] text-[#7c5742]">
-                    Image {previewIndex + 1}
-                  </span>
-                </div>
-                <img
-                  src={previewImageUrl(selectedImages[previewIndex])}
-                  alt={`Selected preview for image ${previewIndex + 1}`}
-                  className="w-full h-40 rounded-md object-cover border border-[#e8dbca]"
-                />
-              </div>
-            )}
             <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
               {selectedImages.map((image, index) => (
                 <div
