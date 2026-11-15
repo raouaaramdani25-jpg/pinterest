@@ -5,6 +5,7 @@ import { buildAmazonSearchUrl } from './amazon';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const ARTICLES_FILE = path.join(DATA_DIR, 'articles.json');
+const IS_SERVERLESS = process.env.VERCEL === '1' || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
 
 const INITIAL_ARTICLES: Article[] = [
   {
@@ -106,12 +107,19 @@ const INITIAL_ARTICLES: Article[] = [
 ];
 
 function ensureDirExists() {
+  if (IS_SERVERLESS) return;
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 }
 
+let volatileArticles: Article[] | null = null;
+
 export function getArticles(): Article[] {
+  if (IS_SERVERLESS) {
+    return volatileArticles || INITIAL_ARTICLES;
+  }
+
   ensureDirExists();
   if (!fs.existsSync(ARTICLES_FILE)) {
     fs.writeFileSync(ARTICLES_FILE, JSON.stringify(INITIAL_ARTICLES, null, 2), 'utf-8');
@@ -126,6 +134,20 @@ export function getArticles(): Article[] {
 }
 
 export function saveArticle(article: Article): void {
+  if (IS_SERVERLESS) {
+    const articles = [...(volatileArticles || INITIAL_ARTICLES)];
+    const existingIndex = articles.findIndex((a) => a.id === article.id);
+
+    if (existingIndex >= 0) {
+      articles[existingIndex] = article;
+    } else {
+      articles.unshift(article);
+    }
+
+    volatileArticles = articles;
+    return;
+  }
+
   ensureDirExists();
   const articles = getArticles();
   const existingIndex = articles.findIndex((a) => a.id === article.id);
@@ -140,6 +162,11 @@ export function saveArticle(article: Article): void {
 }
 
 export function deleteArticle(id: string): void {
+  if (IS_SERVERLESS) {
+    volatileArticles = (volatileArticles || INITIAL_ARTICLES).filter((article) => article.id !== id);
+    return;
+  }
+
   ensureDirExists();
   const articles = getArticles().filter((a) => a.id !== id);
   fs.writeFileSync(ARTICLES_FILE, JSON.stringify(articles, null, 2), 'utf-8');

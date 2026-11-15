@@ -3,8 +3,18 @@ import fs from 'fs';
 import path from 'path';
 
 const SETTINGS_FILE = path.join(process.cwd(), 'data', 'settings.json');
+const IS_SERVERLESS = process.env.VERCEL === '1' || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+type StoredSettings = {
+  wpSiteUrl: string;
+  wpUsername: string;
+  wpAppPassword: string;
+  amazonTag: string;
+};
+let volatileSettings: StoredSettings | null = null;
 
 function getStoredSettings() {
+  if (volatileSettings) return volatileSettings;
+
   if (fs.existsSync(SETTINGS_FILE)) {
     try {
       return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
@@ -34,8 +44,12 @@ export async function POST(req: Request) {
     };
 
     const dir = path.dirname(SETTINGS_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+    if (IS_SERVERLESS) {
+      volatileSettings = updated;
+    } else {
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(SETTINGS_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+    }
 
     return NextResponse.json({ success: true, settings: updated });
   } catch (err: any) {
