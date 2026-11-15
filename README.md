@@ -56,7 +56,13 @@ A complete, automated system designed specifically for **CozySpace** to turn Pin
 - **WordPress Username:** `CozySpaceApp`
 - **Application Password:** `WfSP R4rl v3Aq DDaD jksn Iy2l`
 - **Amazon Tag:** `cozyplace04-20`
-- **OpenRouter:** Set `OPENROUTER_API_KEY` in `.env.local` to enable AI rewriting with `nvidia/nemotron-3.5-super-vl:free`.
+- **Article rewriting:** The Article Generator has an **Auto fallback** selector plus direct provider choices for Google Gemini, Groq, Cerebras, Cloudflare Workers AI, and OpenRouter. Configure the providers you want:
+  - `GEMINI_API_KEY` (or `GOOGLE_GEMINI_API_KEY` / `GOOGLE_API_KEY`) with optional `GEMINI_TEXT_MODEL` (default: `gemini-2.5-flash`)
+  - `GROQ_API_KEY` with optional `GROQ_TEXT_MODEL` (default: `llama-3.3-70b-versatile`)
+  - `CEREBRAS_API_KEY` with optional `CEREBRAS_TEXT_MODEL` (default: `llama-3.3-70b`)
+  - `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` with optional `CLOUDFLARE_TEXT_REWRITE_MODEL` (default: `@cf/meta/llama-3.1-8b-instruct`)
+  - `OPENROUTER_API_KEY` with optional `OPENROUTER_TEXT_MODEL` (default: `nvidia/nemotron-3.5-super-vl:free`)
+  Auto tries configured providers in the order Gemini, Groq, Cerebras, Cloudflare, then OpenRouter. The generated article records the provider and model actually used.
 - **AI Images:** Set `GEMINI_API_KEY` (or `GOOGLE_GEMINI_API_KEY`), `CLOUDFLARE_ACCOUNT_ID`, and `CLOUDFLARE_API_TOKEN` to generate replacement images automatically. Optional `HUGGINGFACE_API_KEY` (or `HF_TOKEN`) enables Hugging Face FLUX.1-schnell. The fallback order is Google Gemini, Cloudflare Workers AI, Hugging Face FLUX, Pollinations, Recraft V4.1 Flash V2, then the original image. Gemini image-generation models may require image-generation quota even when the Gemini API key itself is free; Pollinations availability and limits can change.
 
 تقدر تبدلهم أو تيستي الاتصال من صفحة **Settings** فـ الـ Dashboard فـ أي وقت!

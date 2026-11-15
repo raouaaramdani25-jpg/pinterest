@@ -35,16 +35,52 @@ interface AiRewriteResult {
   }>;
 }
 
+type TextRewriteProvider = 'auto' | 'gemini' | 'groq' | 'cerebras' | 'cloudflare' | 'openrouter';
+
+type TextRewriteResponse = {
+  result: AiRewriteResult;
+  provider: string;
+  model: string;
+};
+
+const REWRITE_SYSTEM_PROMPT = [
+  'You rewrite home decor content into original, natural English for a cozy lifestyle blog.',
+  'Do not copy the source wording. Keep factual meaning, avoid inventing product specifications, and use an inviting but useful tone.',
+  'Return JSON only, with this exact shape: {"title":"string","metaDescription":"string","items":[{"title":"string","description":"string"}]}.',
+  'Return exactly one item for every input item, in the same order.',
+].join(' ');
+
+function parseRewriteContent(content: unknown, provider: string): AiRewriteResult {
+  if (typeof content !== 'string' || !content.trim()) {
+    throw new Error(`${provider} returned an empty rewrite response.`);
+  }
+  const jsonContent = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  const result = JSON.parse(jsonContent) as AiRewriteResult;
+  if (!Array.isArray(result.items)) {
+    throw new Error(`${provider} returned an incomplete rewrite response.`);
+  }
+  return result;
+}
+
+function rewritePayload(originalTitle: string, originalDesc: string, items: { title: string; desc: string }[]) {
+  return JSON.stringify({
+    sourceTitle: originalTitle,
+    sourceDescription: originalDesc,
+    items,
+  });
+}
+
 async function rewriteWithOpenRouter(
   originalTitle: string,
   originalDesc: string,
   items: { title: string; desc: string }[]
-): Promise<AiRewriteResult | null> {
+): Promise<TextRewriteResponse | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey || items.length === 0) {
     return null;
   }
 
+  const model = process.env.OPENROUTER_TEXT_MODEL || 'nvidia/nemotron-3.5-super-vl:free';
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -54,27 +90,12 @@ async function rewriteWithOpenRouter(
       'X-Title': 'CozySpace Automation',
     },
     body: JSON.stringify({
-      model: 'nvidia/nemotron-3.5-super-vl:free',
+      model,
       temperature: 0.7,
       max_tokens: 3000,
       messages: [
-        {
-          role: 'system',
-          content: [
-            'You rewrite home decor content into original, natural English for a cozy lifestyle blog.',
-            'Do not copy the source wording. Keep factual meaning, avoid inventing product specifications, and use an inviting but useful tone.',
-            'Return JSON only, with this exact shape: {"title":"string","metaDescription":"string","items":[{"title":"string","description":"string"}]}.',
-            'Return exactly one item for every input item, in the same order.',
-          ].join(' '),
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            sourceTitle: originalTitle,
-            sourceDescription: originalDesc,
-            items,
-          }),
-        },
+        { role: 'system', content: REWRITE_SYSTEM_PROMPT },
+        { role: 'user', content: rewritePayload(originalTitle, originalDesc, items) },
       ],
     }),
   });
@@ -84,18 +105,176 @@ async function rewriteWithOpenRouter(
   }
 
   const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  if (typeof content !== 'string') {
-    throw new Error('OpenRouter returned an empty rewrite response.');
+  return {
+    result: parseRewriteContent(data.choices?.[0]?.message?.content, 'OpenRouter'),
+    provider: 'OpenRouter',
+    model,
+  };
+}
+
+async function rewriteWithGemini(
+  originalTitle: string,
+  originalDesc: string,
+  items: { title: string; desc: string }[]
+): Promise<TextRewriteResponse | null> {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey || items.length === 0) return null;
+
+  const model = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: REWRITE_SYSTEM_PROMPT }] },
+        contents: [{ role: 'user', parts: [{ text: rewritePayload(originalTitle, originalDesc, items) }] }],
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.7 },
+      }),
+    }
+  );
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Gemini API error: HTTP ${response.status}: ${errorBody.slice(0, 300)}`);
+  }
+  const data = await response.json();
+  return {
+    result: parseRewriteContent(
+      data.candidates?.[0]?.content?.parts?.find((part: { text?: string }) => part.text)?.text,
+      'Gemini'
+    ),
+    provider: 'Google Gemini',
+    model,
+  };
+}
+
+async function rewriteWithOpenAICompatible(
+  provider: 'Groq' | 'Cerebras',
+  endpoint: string,
+  apiKey: string | undefined,
+  model: string,
+  originalTitle: string,
+  originalDesc: string,
+  items: { title: string; desc: string }[]
+): Promise<TextRewriteResponse | null> {
+  if (!apiKey || items.length === 0) return null;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.7,
+      max_tokens: 3000,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: REWRITE_SYSTEM_PROMPT },
+        { role: 'user', content: rewritePayload(originalTitle, originalDesc, items) },
+      ],
+    }),
+  });
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`${provider} API error: HTTP ${response.status}: ${errorBody.slice(0, 300)}`);
+  }
+  const data = await response.json();
+  return {
+    result: parseRewriteContent(data.choices?.[0]?.message?.content, provider),
+    provider,
+    model,
+  };
+}
+
+async function rewriteWithCloudflare(
+  originalTitle: string,
+  originalDesc: string,
+  items: { title: string; desc: string }[]
+): Promise<TextRewriteResponse | null> {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+  if (!accountId || !apiToken || items.length === 0) return null;
+
+  const model = process.env.CLOUDFLARE_TEXT_REWRITE_MODEL || '@cf/meta/llama-3.1-8b-instruct';
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: REWRITE_SYSTEM_PROMPT },
+          { role: 'user', content: rewritePayload(originalTitle, originalDesc, items) },
+        ],
+        max_tokens: 3000,
+        temperature: 0.7,
+      }),
+    }
+  );
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Cloudflare text API error: HTTP ${response.status}: ${errorBody.slice(0, 300)}`);
+  }
+  const data = await response.json();
+  return {
+    result: parseRewriteContent(data.result?.response, 'Cloudflare'),
+    provider: 'Cloudflare Workers AI',
+    model,
+  };
+}
+
+async function rewriteWithProvider(
+  provider: TextRewriteProvider,
+  originalTitle: string,
+  originalDesc: string,
+  items: { title: string; desc: string }[]
+): Promise<TextRewriteResponse | null> {
+  const providers: Record<Exclude<TextRewriteProvider, 'auto'>, () => Promise<TextRewriteResponse | null>> = {
+    gemini: () => rewriteWithGemini(originalTitle, originalDesc, items),
+    groq: () => rewriteWithOpenAICompatible(
+      'Groq',
+      'https://api.groq.com/openai/v1/chat/completions',
+      process.env.GROQ_API_KEY,
+      process.env.GROQ_TEXT_MODEL || 'llama-3.3-70b-versatile',
+      originalTitle,
+      originalDesc,
+      items
+    ),
+    cerebras: () => rewriteWithOpenAICompatible(
+      'Cerebras',
+      'https://api.cerebras.ai/v1/chat/completions',
+      process.env.CEREBRAS_API_KEY,
+      process.env.CEREBRAS_TEXT_MODEL || 'llama-3.3-70b',
+      originalTitle,
+      originalDesc,
+      items
+    ),
+    cloudflare: () => rewriteWithCloudflare(originalTitle, originalDesc, items),
+    openrouter: () => rewriteWithOpenRouter(originalTitle, originalDesc, items),
+  };
+
+  const order: Exclude<TextRewriteProvider, 'auto'>[] = provider === 'auto'
+    ? ['gemini', 'groq', 'cerebras', 'cloudflare', 'openrouter']
+    : [provider];
+  const errors: string[] = [];
+
+  for (const candidate of order) {
+    try {
+      const result = await providers[candidate]();
+      if (result) return result;
+    } catch (error) {
+      errors.push(`${candidate}: ${error instanceof Error ? error.message : String(error)}`);
+      console.warn('Text rewrite provider failed; trying the next provider:', error);
+    }
   }
 
-  const jsonContent = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-  const result = JSON.parse(jsonContent) as AiRewriteResult;
-  if (!Array.isArray(result.items) || result.items.length !== items.length) {
-    throw new Error('OpenRouter returned an incomplete rewrite response.');
-  }
-
-  return result;
+  if (errors.length > 0) throw new Error(errors.join(' | '));
+  return null;
 }
 
 // Smart Cozy Text Rewriter
@@ -128,7 +307,19 @@ function rewriteToCozyTone(itemTitle: string, rawDesc: string): string {
 
 export async function POST(req: Request) {
   try {
-    const { url, amazonTag = DEFAULT_AMAZON_TAG } = await req.json();
+    const {
+      url,
+      amazonTag = DEFAULT_AMAZON_TAG,
+      rewriteProvider = 'auto',
+    } = await req.json() as { url?: string; amazonTag?: string; rewriteProvider?: TextRewriteProvider };
+    const selectedRewriteProvider: TextRewriteProvider = [
+      'auto',
+      'gemini',
+      'groq',
+      'cerebras',
+      'cloudflare',
+      'openrouter',
+    ].includes(rewriteProvider) ? rewriteProvider : 'auto';
 
     if (!url || !url.startsWith('http')) {
       return NextResponse.json({ success: false, error: 'Please enter a valid website URL.' }, { status: 400 });
@@ -225,14 +416,22 @@ export async function POST(req: Request) {
     }
 
     let aiRewrite: AiRewriteResult | null = null;
+    let aiProvider = '';
+    let aiModel = '';
     let usedAiRewrite = false;
-    if (process.env.OPENROUTER_API_KEY) {
-      try {
-        aiRewrite = await rewriteWithOpenRouter(originalTitle, originalDesc, itemsToProcess);
-        usedAiRewrite = Boolean(aiRewrite);
-      } catch (aiError) {
-        console.warn('OpenRouter rewrite failed; using local fallback:', aiError);
-      }
+    try {
+      const rewriteResponse = await rewriteWithProvider(
+        selectedRewriteProvider,
+        originalTitle,
+        originalDesc,
+        itemsToProcess
+      );
+      aiRewrite = rewriteResponse?.result || null;
+      aiProvider = rewriteResponse?.provider || '';
+      aiModel = rewriteResponse?.model || '';
+      usedAiRewrite = Boolean(aiRewrite);
+    } catch (aiError) {
+      console.warn('AI rewrite failed; using local fallback:', aiError);
     }
 
     // 4. Construct Rewritten Listicle Items with Amazon Links & Aesthetic Images
@@ -261,8 +460,8 @@ export async function POST(req: Request) {
         description: rewrittenDescription,
         imageUrl: imageMatch.imageUrl,
         imagePrompt: imageMatch.imagePrompt,
-        textAiProvider: usedAiRewrite ? 'OpenRouter' : 'Local fallback',
-        textAiModel: usedAiRewrite ? 'nvidia/nemotron-3.5-super-vl:free' : 'Local cozy-tone rewriter',
+        textAiProvider: usedAiRewrite ? aiProvider : 'Local fallback',
+        textAiModel: usedAiRewrite ? aiModel : 'Local cozy-tone rewriter',
         amazonKeyword,
         amazonSearchUrl,
         ctaText,
@@ -288,8 +487,8 @@ export async function POST(req: Request) {
           description: rewriteToCozyTone(ft, ''),
           imageUrl: img.imageUrl,
           imagePrompt: img.imagePrompt,
-          textAiProvider: usedAiRewrite ? 'OpenRouter' : 'Local fallback',
-          textAiModel: usedAiRewrite ? 'nvidia/nemotron-3.5-super-vl:free' : 'Local cozy-tone rewriter',
+          textAiProvider: usedAiRewrite ? aiProvider : 'Local fallback',
+          textAiModel: usedAiRewrite ? aiModel : 'Local cozy-tone rewriter',
           amazonKeyword: ft.toLowerCase(),
           amazonSearchUrl: buildAmazonSearchUrl(ft, amazonTag),
           ctaText: `Shop ${ft} on Amazon`,
@@ -316,8 +515,8 @@ export async function POST(req: Request) {
       items: rewrittenItems,
       createdAt: new Date().toISOString(),
       status: 'draft',
-      textAiProvider: usedAiRewrite ? 'OpenRouter' : 'Local fallback',
-      textAiModel: usedAiRewrite ? 'nvidia/nemotron-3.5-super-vl:free' : 'Local cozy-tone rewriter',
+      textAiProvider: usedAiRewrite ? aiProvider : 'Local fallback',
+      textAiModel: usedAiRewrite ? aiModel : 'Local cozy-tone rewriter',
     };
 
     return NextResponse.json({
@@ -326,7 +525,7 @@ export async function POST(req: Request) {
       sourceUrl: url,
       originalTitle,
       itemsCount: rewrittenItems.length,
-      message: `Successfully scraped and ${usedAiRewrite ? 'AI-rewritten with OpenRouter' : 'rewritten with the local fallback'} "${originalTitle}" into ${rewrittenItems.length} cozy listicle items. Generated ${generatedImageCount} replacement AI images.`,
+      message: `Successfully scraped and ${usedAiRewrite ? `AI-rewritten with ${aiProvider} (${aiModel})` : 'rewritten with the local fallback'} "${originalTitle}" into ${rewrittenItems.length} cozy listicle items. Generated ${generatedImageCount} replacement AI images.`,
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
