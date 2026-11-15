@@ -18,8 +18,11 @@ export type ImageProviderChoice = 'auto' | 'google' | 'cloudflare' | 'recraft';
 
 const GOOGLE_IMAGE_MODEL = process.env.GOOGLE_GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
 const CLOUDFLARE_IMAGE_MODEL =
-  process.env.CLOUDFLARE_IMAGE_MODEL || '@cf/runwayml/stable-diffusion-v1-5-img2img';
+  process.env.CLOUDFLARE_IMAGE_MODEL || '@cf/bytedance/stable-diffusion-xl-lightning';
+const CLOUDFLARE_IMAGE_STRENGTH = 0.65;
+const CLOUDFLARE_IMAGE_STEPS = 8;
 const RECRAFT_IMAGE_MODEL = 'recraft/recraft-v4.1-flash-v2:free';
+const MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024;
 
 function decodeBase64(value: string): Buffer {
   const cleanValue = value.replace(/^data:[^;]+;base64,/, '');
@@ -99,6 +102,12 @@ async function generateWithCloudflare(
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = process.env.CLOUDFLARE_API_TOKEN;
   if (!accountId || !apiToken) return null;
+  if (!sourceImage.mimeType.startsWith('image/')) {
+    throw new Error('Cloudflare requires a valid image input.');
+  }
+  if (sourceImage.data.length > MAX_SOURCE_IMAGE_BYTES) {
+    throw new Error('Cloudflare input image must be 10MB or smaller.');
+  }
 
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${CLOUDFLARE_IMAGE_MODEL}`,
@@ -107,10 +116,14 @@ async function generateWithCloudflare(
       headers: {
         Authorization: `Bearer ${apiToken}`,
         'Content-Type': 'application/json',
+        Accept: 'image/png',
       },
       body: JSON.stringify({
+        // Lower strength keeps more of the original composition; increase it for a bigger redesign.
         prompt: `${prompt} Create a new original image inspired by the reference image.`,
         image_b64: sourceImage.data.toString('base64'),
+        strength: CLOUDFLARE_IMAGE_STRENGTH,
+        num_steps: CLOUDFLARE_IMAGE_STEPS,
       }),
     }
   );
