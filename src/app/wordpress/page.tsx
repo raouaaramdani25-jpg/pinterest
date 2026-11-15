@@ -8,6 +8,15 @@ import {
 import { Article } from '@/types';
 import { formatArticleForWordPress } from '@/lib/wordpress';
 
+type ImageComparisonOption = {
+  provider: string;
+  success: boolean;
+  imageUrl?: string;
+  imageAiProvider?: string;
+  imageAiModel?: string;
+  error?: string;
+};
+
 export default function WordPressPublisherPage() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +32,7 @@ export default function WordPressPublisherPage() {
   const [featuredAction, setFeaturedAction] = useState(false);
   const [previewImageProviders, setPreviewImageProviders] = useState<Record<number, string>>({});
   const [previewImageActionIndex, setPreviewImageActionIndex] = useState<number | null>(null);
+  const [previewImageOptions, setPreviewImageOptions] = useState<Record<number, ImageComparisonOption[]>>({});
 
   const fetchArticles = async () => {
     try {
@@ -213,6 +223,50 @@ export default function WordPressPublisherPage() {
       setResult({ success: false, message: error.message || 'Image generation failed.' });
     } finally {
       setPreviewImageActionIndex(null);
+    }
+  };
+
+  const comparePreviewImages = async (index: number) => {
+    if (!activeArticle?.items?.[index]?.imageUrl) return;
+    setPreviewImageActionIndex(index);
+    setResult(null);
+    try {
+      const item = activeArticle.items[index];
+      const response = await fetch('/api/images/compare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...item,
+          customPrompt: item.imagePrompt || item.description,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Image comparison failed.');
+      setPreviewImageOptions((current) => ({ ...current, [index]: data.results }));
+    } catch (error: any) {
+      setResult({ success: false, message: error.message || 'Image comparison failed.' });
+    } finally {
+      setPreviewImageActionIndex(null);
+    }
+  };
+
+  const usePreviewImage = async (index: number, option: ImageComparisonOption) => {
+    if (!option.success || !option.imageUrl) return;
+    try {
+      await saveArticleItem(index, {
+        imageUrl: option.imageUrl,
+        imageAiProvider: option.imageAiProvider || option.provider,
+        imageAiModel: option.imageAiModel,
+      });
+      setPreviewImageOptions((current) => ({ ...current, [index]: [] }));
+      setResult({
+        success: true,
+        message: index === 0
+          ? 'Selected image saved everywhere, including the Featured Image, article text, and Pinterest.'
+          : 'Selected image saved to the article text and Pinterest data.',
+      });
+    } catch (error: any) {
+      setResult({ success: false, message: error.message || 'Could not save the selected image.' });
     }
   };
 
@@ -581,11 +635,50 @@ export default function WordPressPublisherPage() {
                           >
                             {previewImageActionIndex === index ? 'Generating...' : 'Regenerate with AI'}
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => void comparePreviewImages(index)}
+                            disabled={previewImageActionIndex !== null}
+                            className="rounded-lg border border-[#9b7053] px-3 py-1.5 text-[10px] font-bold text-[#7c5742] disabled:opacity-50"
+                          >
+                            {previewImageActionIndex === index ? 'Comparing...' : 'Compare all AI'}
+                          </button>
                           <span className="w-full text-[10px] text-[#7c5742]">
                             AI: {item.imageAiProvider || 'Original / not recorded'}
                             {item.imageAiModel ? ` · ${item.imageAiModel}` : ''}
                           </span>
                         </div>
+                        {previewImageOptions[index]?.length > 0 && (
+                          <div className="grid grid-cols-2 gap-2 rounded-lg border border-[#d7c1a8] bg-[#f4ede2] p-2">
+                            {previewImageOptions[index].map((option) => (
+                              <div key={option.provider} className="rounded-lg border border-[#e8dbca] bg-white p-1.5">
+                                {option.success && option.imageUrl ? (
+                                  <>
+                                    <img
+                                      src={option.imageUrl}
+                                      alt={`${option.provider} generated option`}
+                                      className="aspect-square w-full rounded-md object-cover"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => void usePreviewImage(index, option)}
+                                      className="mt-1.5 w-full rounded-md bg-[#553c30] px-2 py-1.5 text-[10px] font-bold text-white"
+                                    >
+                                      Use this image
+                                    </button>
+                                    <p className="mt-1 truncate text-[9px] text-[#7c5742]">
+                                      {option.imageAiProvider || option.provider}
+                                    </p>
+                                  </>
+                                ) : (
+                                  <p className="p-2 text-[9px] leading-relaxed text-red-700">
+                                    {option.provider}: {option.error || 'Unavailable'}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                     <p className="mt-4 leading-[1.85] text-[#443329]">{item.description}</p>
