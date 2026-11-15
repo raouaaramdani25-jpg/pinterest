@@ -485,24 +485,34 @@ export type ReplacementImageBatchResult = {
 };
 
 export async function generateReplacementImages(items: ArticleItem[]): Promise<ReplacementImageBatchResult> {
+  const results = await Promise.all(
+    items.map(async (item, index) => {
+      if (!item.imageUrl) return { index, item, generatedUrl: null, error: null };
+
+      try {
+        const generatedUrl = await generateReplacementImage(item, index);
+        return { index, item, generatedUrl, error: null };
+      } catch (error) {
+        return {
+          index,
+          item,
+          generatedUrl: null,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    })
+  );
+
   let generatedCount = 0;
   const errors: string[] = [];
-
-  for (let index = 0; index < items.length; index += 1) {
-    const item = items[index];
-    if (!item.imageUrl) continue;
-
-    try {
-      const generatedUrl = await generateReplacementImage(item, index);
-      if (generatedUrl) {
-        item.imageUrl = generatedUrl.url;
-        item.imageAiProvider = generatedUrl.provider;
-        item.imageAiModel = generatedUrl.model;
-        generatedCount += 1;
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(`Image ${index + 1} (${item.title}): ${message}`);
+  for (const { index, item, generatedUrl, error } of results) {
+    if (generatedUrl) {
+      item.imageUrl = generatedUrl.url;
+      item.imageAiProvider = generatedUrl.provider;
+      item.imageAiModel = generatedUrl.model;
+      generatedCount += 1;
+    } else if (error) {
+      errors.push(`Image ${index + 1} (${item.title}): ${error}`);
       console.warn(`Replacement image ${index + 1} failed; continuing with the remaining images:`, error);
     }
   }

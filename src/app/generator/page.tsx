@@ -120,7 +120,23 @@ export default function ArticleGeneratorPage() {
         }),
       });
 
-      const data = await res.json();
+      const responseText = await res.text();
+      let data: {
+        success?: boolean;
+        article?: Article;
+        message?: string;
+        error?: string;
+        itemsCount?: number;
+        imageErrors?: string[];
+      };
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error(
+          responseText.trim().slice(0, 500) ||
+          `Rewrite request failed with HTTP ${res.status}.`
+        );
+      }
 
       if (data.success && data.article) {
         setScrapeStatus('2/4 Rewriting into aesthetic Cozy listicle...');
