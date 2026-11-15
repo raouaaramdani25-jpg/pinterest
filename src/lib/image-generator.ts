@@ -19,6 +19,8 @@ export type ImageProviderChoice = 'auto' | 'google' | 'cloudflare' | 'recraft';
 const GOOGLE_IMAGE_MODEL = process.env.GOOGLE_GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
 const CLOUDFLARE_IMAGE_MODEL =
   process.env.CLOUDFLARE_IMAGE_MODEL || '@cf/stabilityai/stable-diffusion-xl-base-1.0';
+const CLOUDFLARE_TEXT_MODEL =
+  process.env.CLOUDFLARE_TEXT_MODEL || '@cf/black-forest-labs/flux-1-schnell';
 const CLOUDFLARE_IMAGE_STRENGTH = 0.65;
 const CLOUDFLARE_IMAGE_STEPS = 20;
 const RECRAFT_IMAGE_MODEL = 'recraft/recraft-v4.1-flash-v2:free';
@@ -95,22 +97,14 @@ async function generateWithGoogle(
   };
 }
 
-async function generateWithCloudflare(
-  prompt: string,
-  sourceImage: GeneratedImage
-): Promise<GeneratedImage | null> {
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken = process.env.CLOUDFLARE_API_TOKEN;
-  if (!accountId || !apiToken) return null;
-  if (!sourceImage.mimeType.startsWith('image/')) {
-    throw new Error('Cloudflare requires a valid image input.');
-  }
-  if (sourceImage.data.length > MAX_SOURCE_IMAGE_BYTES) {
-    throw new Error('Cloudflare input image must be 10MB or smaller.');
-  }
-
+async function callCloudflareImageModel(
+  model: string,
+  payload: Record<string, unknown>,
+  accountId: string,
+  apiToken: string
+): Promise<GeneratedImage> {
   const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${CLOUDFLARE_IMAGE_MODEL}`,
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`,
     {
       method: 'POST',
       headers: {
@@ -118,13 +112,7 @@ async function generateWithCloudflare(
         'Content-Type': 'application/json',
         Accept: 'image/png',
       },
-      body: JSON.stringify({
-        // Lower strength keeps more of the original composition; increase it for a bigger redesign.
-        prompt: `${prompt} Create a new original image inspired by the reference image.`,
-        image_b64: sourceImage.data.toString('base64'),
-        strength: CLOUDFLARE_IMAGE_STRENGTH,
-        num_steps: CLOUDFLARE_IMAGE_STEPS,
-      }),
+      body: JSON.stringify(payload),
     }
   );
 
@@ -132,13 +120,14 @@ async function generateWithCloudflare(
     const errorBody = await response.text();
     throw new Error(`Cloudflare image API returned HTTP ${response.status}: ${errorBody.slice(0, 500)}`);
   }
+
   const contentType = response.headers.get('content-type') || '';
   if (contentType.startsWith('image/')) {
     return {
       data: Buffer.from(await response.arrayBuffer()),
       mimeType: contentType.split(';')[0],
       provider: 'Cloudflare Workers AI',
-      model: CLOUDFLARE_IMAGE_MODEL,
+      model,
     };
   }
 
@@ -150,8 +139,64 @@ async function generateWithCloudflare(
     data: decodeBase64(image),
     mimeType: 'image/png',
     provider: 'Cloudflare Workers AI',
-    model: CLOUDFLARE_IMAGE_MODEL,
+    model,
   };
+}
+
+async function generateWithCloudflare(
+  prompt: string,
+  sourceImage: GeneratedImage
+): Promise<GeneratedImage | null> {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+  if (!accountId || !apiToken) return null;
+  let img2imgError: unknown;
+
+  if (sourceImage.mimeType.startsWith('image/') && sourceImage.data.length <= MAX_SOURCE_IMAGE_BYTES) {
+    try {
+      return await callCloudflareImageModel(
+        CLOUDFLARE_IMAGE_MODEL,
+        {
+          // Lower strength keeps more of the original composition; increase it for a bigger redesign.
+          prompt: `${prompt} Create a new original image inspired by the reference image.`,
+          image: Array.from(sourceImage.data),
+          strength: CLOUDFLARE_IMAGE_STRENGTH,
+          num_steps: CLOUDFLARE_IMAGE_STEPS,
+        },
+        accountId,
+        apiToken
+      );
+    } catch (error) {
+      img2imgError = error;
+      console.warn('Cloudflare img2img failed; trying fallback generation:', error);
+    }
+  } else {
+    img2imgError = new Error('Cloudflare requires a valid image input up to 10MB.');
+  }
+
+  try {
+    const openRouterFallback = await generateWithRecraft(prompt);
+    if (openRouterFallback) return openRouterFallback;
+  } catch (error) {
+    console.warn('OpenRouter fallback failed after Cloudflare img2img:', error);
+  }
+
+  try {
+    return await callCloudflareImageModel(
+      CLOUDFLARE_TEXT_MODEL,
+      {
+        prompt: `${prompt} Create a new original image with a similar subject and mood.`,
+        num_steps: 4,
+      },
+      accountId,
+      apiToken
+    );
+  } catch (textToImageError) {
+    throw new Error(
+      `Cloudflare img2img failed: ${img2imgError instanceof Error ? img2imgError.message : String(img2imgError)}. ` +
+      `Cloudflare text-to-image fallback failed: ${textToImageError instanceof Error ? textToImageError.message : String(textToImageError)}`
+    );
+  }
 }
 
 async function generateWithRecraft(prompt: string): Promise<GeneratedImage | null> {
