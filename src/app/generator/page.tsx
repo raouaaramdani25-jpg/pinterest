@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Sparkles, Plus, Trash2, Save, ShoppingBag, Globe, 
-  Image as ImageIcon, RefreshCw, CheckCircle2, ArrowRight 
+  Image as ImageIcon, RefreshCw, CheckCircle2, ArrowRight, Upload
 } from 'lucide-react';
 import { Article, ArticleItem } from '@/types';
 import { buildAmazonSearchUrl } from '@/lib/amazon';
@@ -95,6 +95,8 @@ export default function ArticleGeneratorPage() {
   const [scrapeStatus, setScrapeStatus] = useState('');
   const [scrapeError, setScrapeError] = useState<string | null>(null);
   const [scrapeSuccessMsg, setScrapeSuccessMsg] = useState<string | null>(null);
+  const [imageProviders, setImageProviders] = useState<Record<number, string>>({});
+  const [imageActionIndex, setImageActionIndex] = useState<number | null>(null);
 
   const handleScrapeRewriteUrl = async () => {
     if (!competitorUrl.trim() || !competitorUrl.startsWith('http')) {
@@ -211,6 +213,61 @@ export default function ArticleGeneratorPage() {
 
   const removeItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+  };
+
+  const updateGeneratedImage = async (index: number) => {
+    const item = items[index];
+    if (!item?.imageUrl) return;
+    setImageActionIndex(index);
+    try {
+      const response = await fetch('/api/images/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...item,
+          customPrompt: item.imagePrompt,
+          provider: imageProviders[index] || 'auto',
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Image generation failed.');
+      const nextItems = [...items];
+      nextItems[index] = {
+        ...item,
+        imageUrl: data.imageUrl,
+        imageAiProvider: data.imageAiProvider,
+        imageAiModel: data.imageAiModel,
+      };
+      setItems(nextItems);
+    } catch (error: any) {
+      setScrapeError(error.message || 'Image generation failed.');
+    } finally {
+      setImageActionIndex(null);
+    }
+  };
+
+  const uploadReplacementImage = async (index: number, file: File) => {
+    setImageActionIndex(index);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('previousUrl', items[index]?.imageUrl || '');
+      const response = await fetch('/api/images/upload', { method: 'POST', body: formData });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Image upload failed.');
+      const nextItems = [...items];
+      nextItems[index] = {
+        ...nextItems[index],
+        imageUrl: data.imageUrl,
+        imageAiProvider: data.imageAiProvider,
+        imageAiModel: data.imageAiModel,
+      };
+      setItems(nextItems);
+    } catch (error: any) {
+      setScrapeError(error.message || 'Image upload failed.');
+    } finally {
+      setImageActionIndex(null);
+    }
   };
 
   const handleSaveArticle = async () => {
@@ -518,6 +575,45 @@ export default function ArticleGeneratorPage() {
                   <div className="text-[10px] text-[#7c5742]">
                     <strong>AI Prompt:</strong> {item.imagePrompt}
                   </div>
+                  <div className="text-[10px] text-[#7c5742]">
+                    <strong>Image AI:</strong> {item.imageAiProvider || 'Original / not recorded'}
+                    {item.imageAiModel ? ` · ${item.imageAiModel}` : ''}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={imageProviders[idx] || 'auto'}
+                      onChange={(event) => setImageProviders({ ...imageProviders, [idx]: event.target.value })}
+                      className="min-w-0 flex-1 px-2 py-1.5 text-[10px] bg-white border border-[#d7c1a8] rounded-lg text-[#2f1f1a]"
+                      aria-label={`Image AI provider for item ${idx + 1}`}
+                    >
+                      <option value="auto">Auto fallback</option>
+                      <option value="google">Google Gemini</option>
+                      <option value="cloudflare">Cloudflare Workers AI</option>
+                      <option value="recraft">Recraft via OpenRouter</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => updateGeneratedImage(idx)}
+                      disabled={imageActionIndex !== null}
+                      className="px-2 py-1.5 rounded-lg bg-[#553c30] text-white text-[10px] font-bold disabled:opacity-50"
+                    >
+                      {imageActionIndex === idx ? '...' : 'Generate'}
+                    </button>
+                    <label className="px-2 py-1.5 rounded-lg border border-[#d7c1a8] bg-white text-[10px] font-bold text-[#553c30] cursor-pointer">
+                      <Upload className="w-3 h-3 inline mr-1" />
+                      Upload
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void uploadReplacementImage(idx, file);
+                          event.currentTarget.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 {/* Content & Amazon fields (8 cols) */}
@@ -540,6 +636,10 @@ export default function ArticleGeneratorPage() {
                       onChange={(e) => updateItem(idx, 'description', e.target.value)}
                       className="w-full px-3 py-2 bg-[#faf7f2] border border-[#d7c1a8] rounded-xl text-xs text-[#2f1f1a]"
                     />
+                  </div>
+                  <div className="text-[10px] text-[#7c5742]">
+                    <strong>Text AI:</strong> {item.textAiProvider || 'Not recorded'}
+                    {item.textAiModel ? ` · ${item.textAiModel}` : ''}
                   </div>
 
                   {/* Amazon link settings */}

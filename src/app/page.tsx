@@ -244,6 +244,15 @@ export default function DashboardPage() {
                     <h3 className="text-lg font-bold font-serif text-[#2f1f1a] hover:text-[#9b7053] transition-colors">
                       {article.title}
                     </h3>
+                    <div className="flex flex-wrap gap-1.5 pt-1 text-[10px] text-[#7c5742]">
+                      <span className="px-2 py-0.5 rounded bg-[#f4ede2]">
+                        Text AI: {article.textAiProvider || 'Not recorded'}
+                        {article.textAiModel ? ` · ${article.textAiModel}` : ''}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-[#f4ede2]">
+                        Image AI: {article.items?.find((item) => item.imageAiProvider)?.imageAiProvider || 'Original / mixed'}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Actions for this article */}
@@ -335,6 +344,9 @@ export default function DashboardPage() {
                       <div className="p-2 space-y-1">
                         <p className="text-[11px] font-semibold text-[#2f1f1a] truncate" title={item.title}>
                           {item.title}
+                        </p>
+                        <p className="text-[10px] text-[#7c5742] truncate" title={item.imageAiModel || item.imageAiProvider || 'Original image'}>
+                          Image AI: {item.imageAiProvider || 'Original'}
                         </p>
                         <a
                           href={item.directAmazonUrl || item.amazonSearchUrl}

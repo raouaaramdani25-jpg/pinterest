@@ -24,6 +24,7 @@ function PinStudioContent() {
   const [textColor, setTextColor] = useState('#2f1f1a');
   const [accentColor, setAccentColor] = useState('#b28867');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
   const [imagePrompts, setImagePrompts] = useState<string[]>([]);
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -31,6 +32,21 @@ function PinStudioContent() {
   const [copiedDesc, setCopiedDesc] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const normalizeImageUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('data:') || /^https?:\/\//i.test(url)) return url;
+    if (url.startsWith('/')) return url;
+    if (url.startsWith('public/')) return `/${url.slice('public/'.length)}`;
+    return `/${url}`;
+  };
+
+  const previewImageUrl = (url: string) => {
+    const normalizedUrl = normalizeImageUrl(url);
+    return /^https?:\/\//i.test(normalizedUrl)
+      ? `/api/images/proxy?url=${encodeURIComponent(normalizedUrl)}`
+      : normalizedUrl;
+  };
 
   // Load articles
   useEffect(() => {
@@ -49,7 +65,8 @@ function PinStudioContent() {
   const applyArticleData = (article: Article) => {
     setPinTitle(article.title);
     setPinSubtitle(`${article.items?.length || 10} Aesthetic Decor Pieces for a Warm Home`);
-    const imgs = article.items?.map((i) => i.imageUrl).filter(Boolean) || [];
+    const imgs = article.items?.map((i) => normalizeImageUrl(i.imageUrl)).filter(Boolean) || [];
+    setPreviewIndex(0);
     setImagePrompts(article.items?.map((item) => item.imagePrompt || item.description) || []);
     setSelectedImages(imgs.length > 0 ? imgs : [
       'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1000&q=80',
@@ -78,27 +95,33 @@ function PinStudioContent() {
     const loadImage = (url: string): Promise<HTMLImageElement> => {
       return new Promise((resolve) => {
         const img = new Image();
-        img.crossOrigin = 'anonymous';
         img.onload = () => resolve(img);
         img.onerror = () => {
           // If image fails, create a placeholder canvas
           const fallback = new Image();
           resolve(fallback);
         };
-        img.src = url;
+        img.src = previewImageUrl(url);
       });
     };
 
+    let cancelled = false;
     const drawHelper = async () => {
-      const img1Url = selectedImages[0] || 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1000&q=80';
-      const img2Url = selectedImages[1] || 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=1000&q=80';
-      const img3Url = selectedImages[2] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=80';
+      const getPreviewImage = (offset: number, fallback: string) => {
+        if (selectedImages.length === 0) return fallback;
+        return selectedImages[(previewIndex + offset) % selectedImages.length] || fallback;
+      };
+      const img1Url = getPreviewImage(0, 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1000&q=80');
+      const img2Url = getPreviewImage(1, 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=1000&q=80');
+      const img3Url = getPreviewImage(2, 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=80');
 
       const [img1, img2, img3] = await Promise.all([
         loadImage(img1Url),
         loadImage(img2Url),
         loadImage(img3Url),
       ]);
+
+      if (cancelled) return;
 
       if (template === 'hero') {
         // Single Hero Image full height
@@ -244,7 +267,10 @@ function PinStudioContent() {
     };
 
     drawHelper();
-  }, [template, pinTitle, pinSubtitle, brandText, badgeColor, textColor, accentColor, selectedImages]);
+    return () => {
+      cancelled = true;
+    };
+  }, [template, pinTitle, pinSubtitle, brandText, badgeColor, textColor, accentColor, selectedImages, previewIndex]);
 
   // Helper: rounded rectangle
   function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -322,11 +348,19 @@ function PinStudioContent() {
       const nextImages = [...selectedImages];
       nextImages[index] = data.imageUrl;
       setSelectedImages(nextImages);
+      setPreviewIndex(index);
 
       const updatedArticle: Article = {
         ...selectedArticle,
         items: selectedArticle.items.map((articleItem, itemIndex) =>
-          itemIndex === index ? { ...articleItem, imageUrl: data.imageUrl } : articleItem
+          itemIndex === index
+            ? {
+                ...articleItem,
+                imageUrl: data.imageUrl,
+                imageAiProvider: data.imageAiProvider,
+                imageAiModel: data.imageAiModel,
+              }
+            : articleItem
         ),
       };
       const saveResponse = await fetch('/api/articles', {
@@ -518,18 +552,51 @@ function PinStudioContent() {
               </label>
               <span className="text-[10px] text-[#9b7053]">Google → Cloudflare → Recraft</span>
             </div>
+            <div className="flex flex-wrap gap-1.5 text-[10px] text-[#7c5742]">
+              <span className="px-2 py-0.5 rounded bg-white border border-[#e8dbca]">
+                Text: {selectedArticle?.textAiProvider || 'Unknown'} / {selectedArticle?.textAiModel || 'Not recorded'}
+              </span>
+            </div>
             <p className="text-[11px] text-[#7c5742]">
               عدّل الـ prompt باش تبدل الجو، الألوان، أو composition ديال أي صورة.
             </p>
             <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
               {selectedImages.map((image, index) => (
-                <div key={`${image}-${index}`} className="p-2.5 rounded-lg bg-white border border-[#e8dbca] space-y-2">
+                <div
+                  key={`${image}-${index}`}
+                  onClick={() => setPreviewIndex(index)}
+                  className="p-2.5 rounded-lg bg-white border border-[#e8dbca] space-y-2 cursor-pointer hover:border-[#9b7053] transition-colors"
+                >
                   <div className="flex items-center gap-2">
-                    <img src={image} alt="" className="w-12 h-12 rounded-md object-cover border border-[#e8dbca]" />
-                    <span className="text-[11px] font-semibold text-[#553c30]">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewIndex(index)}
+                      className={`relative w-28 h-20 shrink-0 rounded-md overflow-hidden border bg-[#f4ede2] flex items-center justify-center ${
+                        previewIndex === index ? 'border-[#9b7053] ring-2 ring-[#d7c1a8]' : 'border-[#e8dbca]'
+                      }`}
+                      aria-label={`Preview image ${index + 1}`}
+                    >
+                      <img
+                        src={previewImageUrl(image)}
+                        alt={`Preview for image ${index + 1}`}
+                        className="relative z-10 w-full h-full object-cover"
+                        onError={(event) => {
+                          event.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <ImageIcon className="absolute w-6 h-6 text-[#b28867]" />
+                    </button>
+                    <span className="text-[11px] font-semibold leading-relaxed text-[#553c30]">
                       Image {index + 1}{selectedArticle?.items?.[index]?.title ? ` · ${selectedArticle.items[index].title}` : ''}
                     </span>
                   </div>
+                  <div className="text-[10px] text-[#7c5742]">
+                    Image AI: {selectedArticle?.items?.[index]?.imageAiProvider || 'Original / not recorded'}
+                    {selectedArticle?.items?.[index]?.imageAiModel
+                      ? ` · ${selectedArticle.items[index].imageAiModel}`
+                      : ''}
+                  </div>
+                  <p className="text-[10px] text-[#9b7053]">Click this image to preview it</p>
                   <textarea
                     rows={2}
                     value={imagePrompts[index] || ''}

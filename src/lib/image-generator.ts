@@ -5,7 +5,16 @@ import { ArticleItem } from '@/types';
 type GeneratedImage = {
   data: Buffer;
   mimeType: string;
+  provider?: string;
+  model?: string;
 };
+
+export type ImageGenerationResult = {
+  url: string;
+  provider: string;
+  model: string;
+};
+export type ImageProviderChoice = 'auto' | 'google' | 'cloudflare' | 'recraft';
 
 const GOOGLE_IMAGE_MODEL = process.env.GOOGLE_GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
 const CLOUDFLARE_IMAGE_MODEL =
@@ -78,6 +87,8 @@ async function generateWithGoogle(
   return {
     data: decodeBase64(image.data),
     mimeType: image.mimeType || image.mime_type || 'image/png',
+    provider: 'Google Gemini',
+    model: GOOGLE_IMAGE_MODEL,
   };
 }
 
@@ -107,14 +118,24 @@ async function generateWithCloudflare(
   if (!response.ok) throw new Error(`Cloudflare image API returned HTTP ${response.status}`);
   const contentType = response.headers.get('content-type') || '';
   if (contentType.startsWith('image/')) {
-    return { data: Buffer.from(await response.arrayBuffer()), mimeType: contentType.split(';')[0] };
+    return {
+      data: Buffer.from(await response.arrayBuffer()),
+      mimeType: contentType.split(';')[0],
+      provider: 'Cloudflare Workers AI',
+      model: CLOUDFLARE_IMAGE_MODEL,
+    };
   }
 
   const data = await response.json();
   const image = data.result?.image || data.result?.images?.[0] || data.image;
   if (typeof image !== 'string') throw new Error('Cloudflare returned no generated image.');
 
-  return { data: decodeBase64(image), mimeType: 'image/png' };
+  return {
+    data: decodeBase64(image),
+    mimeType: 'image/png',
+    provider: 'Cloudflare Workers AI',
+    model: CLOUDFLARE_IMAGE_MODEL,
+  };
 }
 
 async function generateWithRecraft(prompt: string): Promise<GeneratedImage | null> {
@@ -142,7 +163,12 @@ async function generateWithRecraft(prompt: string): Promise<GeneratedImage | nul
   if (!image) throw new Error('Recraft returned no generated image.');
 
   if (image.b64_json) {
-    return { data: decodeBase64(image.b64_json), mimeType: 'image/png' };
+    return {
+      data: decodeBase64(image.b64_json),
+      mimeType: 'image/png',
+      provider: 'OpenRouter',
+      model: RECRAFT_IMAGE_MODEL,
+    };
   }
 
   if (image.url) {
@@ -151,35 +177,42 @@ async function generateWithRecraft(prompt: string): Promise<GeneratedImage | nul
     return {
       data: Buffer.from(await imageResponse.arrayBuffer()),
       mimeType: imageResponse.headers.get('content-type')?.split(';')[0] || 'image/png',
+      provider: 'OpenRouter',
+      model: RECRAFT_IMAGE_MODEL,
     };
   }
 
   throw new Error('Recraft returned an unsupported image format.');
 }
 
-async function saveGeneratedImage(image: GeneratedImage, item: ArticleItem, index: number): Promise<string> {
-  const extension = image.mimeType.includes('jpeg') ? 'jpg' : 'png';
-  const filename = `rewrite-${Date.now()}-${index + 1}-${item.id}.${extension}`;
-  const outputDir = path.join(process.cwd(), 'public', 'generated');
-  await fs.mkdir(outputDir, { recursive: true });
-  await fs.writeFile(path.join(outputDir, filename), image.data);
-  return `/generated/${filename}`;
+async function saveGeneratedImage(image: GeneratedImage, item: ArticleItem, index: number): Promise<ImageGenerationResult> {
+  return {
+    url: `data:${image.mimeType};base64,${image.data.toString('base64')}`,
+    provider: image.provider || 'Unknown',
+    model: image.model || 'Unknown',
+  };
 }
 
 export async function generateReplacementImage(
   item: ArticleItem,
   index: number,
-  customPrompt?: string
-): Promise<string | null> {
+  customPrompt?: string,
+  preferredProvider: ImageProviderChoice = 'auto'
+): Promise<ImageGenerationResult | null> {
   const sourceImage = item.imageUrl ? await fetchSourceImage(item.imageUrl) : null;
   const prompt = `${customPrompt?.trim() || `${item.title}. ${item.imagePrompt || item.description}`}. Warm, premium, realistic home decor photography.`;
   let generatedImage: GeneratedImage | null = null;
 
-  for (const provider of [
-    () => sourceImage ? generateWithGoogle(prompt, sourceImage) : null,
-    () => sourceImage ? generateWithCloudflare(prompt, sourceImage) : null,
-    () => generateWithRecraft(prompt),
-  ]) {
+  const providers = {
+    google: () => sourceImage ? generateWithGoogle(prompt, sourceImage) : null,
+    cloudflare: () => sourceImage ? generateWithCloudflare(prompt, sourceImage) : null,
+    recraft: () => generateWithRecraft(prompt),
+  };
+  const providerOrder = preferredProvider === 'auto'
+    ? [providers.google, providers.cloudflare, providers.recraft]
+    : [providers[preferredProvider]];
+
+  for (const provider of providerOrder) {
     try {
       generatedImage = await provider();
       if (generatedImage) break;
@@ -200,7 +233,9 @@ export async function generateReplacementImages(items: ArticleItem[]): Promise<n
 
     const generatedUrl = await generateReplacementImage(item, index);
     if (generatedUrl) {
-      item.imageUrl = generatedUrl;
+      item.imageUrl = generatedUrl.url;
+      item.imageAiProvider = generatedUrl.provider;
+      item.imageAiModel = generatedUrl.model;
       generatedCount += 1;
     }
   }

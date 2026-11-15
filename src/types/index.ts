@@ -5,6 +5,11 @@ export interface ArticleItem {
   description: string;
   imageUrl: string;
   imagePrompt: string;
+  imageAiProvider?: string;
+  imageAiModel?: string;
+  imageCropPosition?: 'center' | 'top' | 'bottom' | 'left' | 'right';
+  textAiProvider?: string;
+  textAiModel?: string;
   amazonKeyword: string;
   amazonSearchUrl: string;
   directAmazonUrl?: string;
@@ -25,6 +30,8 @@ export interface Article {
   wpPostId?: number;
   wpPostUrl?: string;
   publishedAt?: string;
+  textAiProvider?: string;
+  textAiModel?: string;
 }
 
 export interface Settings {
