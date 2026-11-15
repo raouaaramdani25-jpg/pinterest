@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Article } from '@/types';
 import { formatArticleForWordPress } from '@/lib/wordpress';
-import { getClientArticles, saveClientArticle } from '@/lib/client-article-storage';
+import { deleteClientArticle, getClientArticles, saveClientArticle } from '@/lib/client-article-storage';
 
 type ImageComparisonOption = {
   provider: string;
@@ -73,11 +73,13 @@ export default function WordPressPublisherPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           articleId: activeArticle.id,
+          article: activeArticle,
           publishStatus,
         }),
       });
       const data = await res.json();
       if (data.success) {
+        if (data.article) await saveClientArticle(data.article);
         setResult({
           success: true,
           message: data.message,
@@ -119,6 +121,7 @@ export default function WordPressPublisherPage() {
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to delete the article.');
       }
+      await deleteClientArticle(activeArticle.id);
 
       const remainingArticles = articles.filter((article) => article.id !== activeArticle.id);
       setArticles(remainingArticles);

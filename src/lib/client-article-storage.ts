@@ -40,3 +40,34 @@ export async function getClientArticles(): Promise<Article[]> {
   database.close();
   return articles.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
+
+export async function deleteClientArticle(id: string): Promise<void> {
+  if (typeof window === 'undefined' || !('indexedDB' in window)) return;
+  const database = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(STORE_NAME, 'readwrite');
+    transaction.objectStore(STORE_NAME).delete(id);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error('Could not delete article from browser storage.'));
+  });
+  database.close();
+}
+
+export async function loadMergedArticles(): Promise<Article[]> {
+  let serverArticles: Article[] = [];
+  try {
+    const res = await fetch('/api/articles');
+    const data = await res.json();
+    if (data.success && Array.isArray(data.articles)) serverArticles = data.articles;
+  } catch {}
+
+  let clientArticles: Article[] = [];
+  try {
+    clientArticles = await getClientArticles();
+  } catch {}
+
+  return [
+    ...clientArticles,
+    ...serverArticles.filter((serverArticle) => !clientArticles.some((clientArticle) => clientArticle.id === serverArticle.id)),
+  ];
+}

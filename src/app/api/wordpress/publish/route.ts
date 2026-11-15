@@ -23,10 +23,17 @@ function getActiveSettings() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { articleId, publishStatus = 'draft', credentials } = body;
+    const { articleId, publishStatus = 'draft', credentials, article: providedArticle } = body;
 
     const articles = getArticles();
-    const article = articles.find((a) => a.id === articleId);
+    const isValidProvided =
+      providedArticle &&
+      typeof providedArticle.title === 'string' &&
+      Array.isArray(providedArticle.items) &&
+      providedArticle.items.length > 0;
+    const article: Article | undefined =
+      (isValidProvided ? (providedArticle as Article) : undefined) ||
+      articles.find((a) => a.id === articleId);
 
     if (!article) {
       return NextResponse.json({ success: false, error: 'Article not found' }, { status: 404 });
@@ -64,6 +71,7 @@ export async function POST(req: Request) {
         success: true,
         postId: result.postId,
         postUrl: result.postUrl,
+        article,
         message: `Successfully uploaded "${article.title}" to WordPress as ${publishStatus.toUpperCase()}!`,
       });
     } else {

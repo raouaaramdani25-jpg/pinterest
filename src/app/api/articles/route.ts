@@ -46,7 +46,7 @@ export async function DELETE(req: Request) {
 
     const article = getArticles().find((item) => item.id === id);
     if (!article) {
-      return NextResponse.json({ success: false, error: 'Article not found' }, { status: 404 });
+      return NextResponse.json({ success: true, deletedImages: 0 });
     }
 
     const generatedDir = path.resolve(process.cwd(), 'public', 'generated');
