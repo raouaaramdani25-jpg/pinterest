@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getArticles, saveArticle } from '@/lib/storage';
+import { deleteArticle, getArticleById, getArticles, saveArticle } from '@/lib/storage';
 import { Article } from '@/types';
 import fs from 'fs';
 import path from 'path';
 
 export async function GET() {
   try {
-    const articles = getArticles();
+    const articles = await getArticles();
     return NextResponse.json({ success: true, articles });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
       body.status = 'draft';
     }
 
-    saveArticle(body);
+    await saveArticle(body);
     return NextResponse.json({ success: true, article: body });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -44,7 +44,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Article id is required' }, { status: 400 });
     }
 
-    const article = getArticles().find((item) => item.id === id);
+    const article = await getArticleById(id);
     if (!article) {
       return NextResponse.json({ success: true, deletedImages: 0 });
     }
@@ -61,8 +61,7 @@ export async function DELETE(req: Request) {
       }
     }
 
-    const { deleteArticle } = await import('@/lib/storage');
-    deleteArticle(id);
+    await deleteArticle(id);
 
     return NextResponse.json({ success: true, deletedImages });
   } catch (err: any) {
