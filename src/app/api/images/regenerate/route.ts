@@ -1,18 +1,6 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import { generateReplacementImage, ImageProviderChoice } from '@/lib/image-generator';
 import { ArticleItem } from '@/types';
-
-function removeGeneratedFile(imageUrl: string) {
-  if (!imageUrl.startsWith('/generated/')) return;
-
-  const generatedDir = path.resolve(process.cwd(), 'public', 'generated');
-  const imagePath = path.resolve(process.cwd(), 'public', imageUrl.slice(1));
-  if (imagePath.startsWith(`${generatedDir}${path.sep}`) && fs.existsSync(imagePath)) {
-    fs.unlinkSync(imagePath);
-  }
-}
 
 export async function POST(req: Request) {
   try {
@@ -47,7 +35,6 @@ export async function POST(req: Request) {
       }, { status: 502 });
     }
 
-    removeGeneratedFile(item.imageUrl);
     return NextResponse.json({
       success: true,
       imageUrl: generatedImage.url,

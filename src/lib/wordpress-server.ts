@@ -17,7 +17,13 @@ async function uploadMedia(
     let buffer: Buffer | null = null;
     let contentType = 'image/jpeg';
 
-    if (imageUrl.startsWith('/') || (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://'))) {
+    if (imageUrl.startsWith('data:')) {
+      const match = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        contentType = match[1];
+        buffer = Buffer.from(match[2], 'base64');
+      }
+    } else if (imageUrl.startsWith('/') || (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://'))) {
       const localPath = path.join(process.cwd(), 'public', imageUrl.replace(/^\//, ''));
       if (fs.existsSync(localPath)) {
         buffer = fs.readFileSync(localPath);

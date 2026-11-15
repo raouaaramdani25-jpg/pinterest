@@ -186,13 +186,8 @@ async function generateWithRecraft(prompt: string): Promise<GeneratedImage | nul
 }
 
 async function saveGeneratedImage(image: GeneratedImage, item: ArticleItem, index: number): Promise<ImageGenerationResult> {
-  const extension = image.mimeType.includes('jpeg') ? 'jpg' : 'png';
-  const filename = `rewrite-${Date.now()}-${index + 1}-${item.id}.${extension}`;
-  const outputDir = path.join(process.cwd(), 'public', 'generated');
-  await fs.mkdir(outputDir, { recursive: true });
-  await fs.writeFile(path.join(outputDir, filename), image.data);
   return {
-    url: `/generated/${filename}`,
+    url: `data:${image.mimeType};base64,${image.data.toString('base64')}`,
     provider: image.provider || 'Unknown',
     model: image.model || 'Unknown',
   };
