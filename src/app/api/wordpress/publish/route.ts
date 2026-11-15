@@ -16,7 +16,7 @@ function getActiveSettings() {
   return {
     wpSiteUrl: process.env.WP_SITE_URL || 'https://cozyspace.company',
     wpUsername: process.env.WP_USERNAME || 'admin',
-    wpAppPassword: process.env.WP_APP_PASSWORD || 'WfSP R4rl v3Aq DDaD jksn Iy2l',
+    wpAppPassword: process.env.WP_APP_PASSWORD || '',
   };
 }
 
@@ -33,9 +33,16 @@ export async function POST(req: Request) {
     }
 
     const saved = getActiveSettings();
-    const primaryUsername = credentials?.username || saved.wpUsername || 'admin';
+    const primaryUsername = credentials?.username || saved.wpUsername || '';
     const appPassword = credentials?.appPassword || saved.wpAppPassword || '';
     const siteUrl = credentials?.siteUrl || saved.wpSiteUrl || 'https://cozyspace.company';
+
+    if (!primaryUsername || !appPassword) {
+      return NextResponse.json({
+        success: false,
+        error: 'WordPress credentials are not configured. Add them in Settings.',
+      }, { status: 400 });
+    }
 
     const creds = {
       siteUrl,
@@ -44,15 +51,6 @@ export async function POST(req: Request) {
     };
 
     let result = await publishToWordPress(article, creds, publishStatus);
-
-    // If authentication failed with username 'admin', auto-try the user email
-    if (!result.success && result.error && (result.error.includes('401') || result.error.includes('403'))) {
-      const emailFallback = 'raouaa.ramdani25@ump.ac.ma';
-      if (creds.username !== emailFallback) {
-        creds.username = emailFallback;
-        result = await publishToWordPress(article, creds, publishStatus);
-      }
-    }
 
     if (result.success && result.postId) {
       // Update article record

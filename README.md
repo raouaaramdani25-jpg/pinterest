@@ -3,6 +3,18 @@
 
 A complete, automated system designed specifically for **CozySpace** to turn Pinterest viral traffic into consistent Amazon Affiliate earnings and prepare the website for top-tier ad networks (Mediavine / Journey).
 
+## Dashboard authentication
+
+Set these server-side environment variables in Vercel for both **Production** and **Preview**:
+
+```env
+DASHBOARD_USERNAME=your-admin-username
+DASHBOARD_PASSWORD=use-a-long-random-password
+DASHBOARD_AUTH_SECRET=use-a-long-random-secret
+```
+
+Never commit these values or WordPress application passwords. Dashboard sessions use signed, HttpOnly cookies.
+
 ---
 
 ## 🚀 Quick Start (كيفاش تخدم السيستيم)
