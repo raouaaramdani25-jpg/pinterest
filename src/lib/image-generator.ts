@@ -153,23 +153,33 @@ async function generateWithCloudflare(
   let img2imgError: unknown;
 
   if (sourceImage.mimeType.startsWith('image/') && sourceImage.data.length <= MAX_SOURCE_IMAGE_BYTES) {
-    try {
-      return await callCloudflareImageModel(
-        CLOUDFLARE_IMAGE_MODEL,
-        {
-          // Lower strength keeps more of the original composition; increase it for a bigger redesign.
-          prompt: `${prompt} Create a new original image inspired by the reference image.`,
-          image: Array.from(sourceImage.data),
-          strength: CLOUDFLARE_IMAGE_STRENGTH,
-          num_steps: CLOUDFLARE_IMAGE_STEPS,
-        },
-        accountId,
-        apiToken
-      );
-    } catch (error) {
-      img2imgError = error;
-      console.warn('Cloudflare img2img failed; trying fallback generation:', error);
+    const imageBase64 = sourceImage.data.toString('base64');
+    const imagePrompt = `${prompt} Create a new original image inspired by the reference image.`;
+    const imagePayloads = [
+      { image: Array.from(sourceImage.data) },
+      { image_b64: imageBase64 },
+      { image: imageBase64 },
+    ];
+
+    for (const imagePayload of imagePayloads) {
+      try {
+        return await callCloudflareImageModel(
+          CLOUDFLARE_IMAGE_MODEL,
+          {
+            // Lower strength keeps more of the original composition; increase it for a bigger redesign.
+            prompt: imagePrompt,
+            ...imagePayload,
+            strength: CLOUDFLARE_IMAGE_STRENGTH,
+            num_steps: CLOUDFLARE_IMAGE_STEPS,
+          },
+          accountId,
+          apiToken
+        );
+      } catch (error) {
+        img2imgError = error;
+      }
     }
+    console.warn('Cloudflare img2img failed with all supported image payload formats; trying fallback generation:', img2imgError);
   } else {
     img2imgError = new Error('Cloudflare requires a valid image input up to 10MB.');
   }
