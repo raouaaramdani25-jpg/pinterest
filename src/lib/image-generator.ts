@@ -14,7 +14,7 @@ export type ImageGenerationResult = {
   provider: string;
   model: string;
 };
-export type ImageProviderChoice = 'auto' | 'google' | 'cloudflare' | 'recraft';
+export type ImageProviderChoice = 'auto' | 'google' | 'cloudflare' | 'huggingface' | 'pollinations' | 'recraft';
 
 const GOOGLE_IMAGE_MODELS = [
   process.env.GOOGLE_GEMINI_IMAGE_MODEL,
@@ -29,6 +29,8 @@ const CLOUDFLARE_TEXT_MODEL =
 const CLOUDFLARE_IMAGE_STRENGTH = 0.65;
 const CLOUDFLARE_IMAGE_STEPS = 20;
 const RECRAFT_IMAGE_MODEL = 'recraft/recraft-v4.1-flash-v2:free';
+const HUGGINGFACE_IMAGE_MODEL =
+  process.env.HUGGINGFACE_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell';
 const MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024;
 
 function decodeBase64(value: string): Buffer {
@@ -93,6 +95,9 @@ async function generateWithGoogle(
 
       if (!response.ok) {
         const errorBody = await response.text();
+        if (response.status === 429) {
+          throw new Error('HTTP 429: Google image-generation quota is exhausted for this API key.');
+        }
         throw new Error(`HTTP ${response.status}: ${errorBody.slice(0, 300)}`);
       }
 
@@ -111,10 +116,17 @@ async function generateWithGoogle(
         model,
       };
     } catch (error) {
-      errors.push(`${model}: ${error instanceof Error ? error.message : String(error)}`);
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`${model}: ${message}`);
+      if (message.includes('HTTP 429')) break;
     }
   }
 
+  if (errors.some((error) => error.includes('HTTP 429'))) {
+    throw new Error(
+      'Google image generation quota is exhausted (HTTP 429). Use Auto fallback, Cloudflare, or Recraft, or wait for the Google quota reset.'
+    );
+  }
   throw new Error(`Google image generation failed. ${errors.join(' | ')}`);
 }
 
@@ -161,6 +173,68 @@ async function callCloudflareImageModel(
     mimeType: 'image/png',
     provider: 'Cloudflare Workers AI',
     model,
+  };
+}
+
+async function generateWithHuggingFace(prompt: string): Promise<GeneratedImage | null> {
+  const token = process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN;
+  if (!token) return null;
+
+  const response = await fetch(
+    `https://router.huggingface.co/hf-inference/models/${HUGGINGFACE_IMAGE_MODEL}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Accept: 'image/png',
+      },
+      body: JSON.stringify({
+        inputs: prompt,
+        parameters: { width: 1024, height: 1024 },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Hugging Face image API returned HTTP ${response.status}: ${errorBody.slice(0, 400)}`);
+  }
+
+  const contentType = response.headers.get('content-type') || 'image/png';
+  if (!contentType.startsWith('image/')) {
+    throw new Error(`Hugging Face returned an unexpected response: ${contentType}`);
+  }
+
+  return {
+    data: Buffer.from(await response.arrayBuffer()),
+    mimeType: contentType.split(';')[0],
+    provider: 'Hugging Face',
+    model: HUGGINGFACE_IMAGE_MODEL,
+  };
+}
+
+async function generateWithPollinations(prompt: string): Promise<GeneratedImage | null> {
+  const response = await fetch(
+    `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&model=flux`,
+    { headers: { Accept: 'image/png' } }
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Pollinations image API returned HTTP ${response.status}: ${errorBody.slice(0, 300)}`);
+  }
+
+  const contentType = response.headers.get('content-type') || 'image/png';
+  if (!contentType.startsWith('image/')) {
+    throw new Error(`Pollinations returned an unexpected response: ${contentType}`);
+  }
+
+  return {
+    data: Buffer.from(await response.arrayBuffer()),
+    mimeType: contentType.split(';')[0],
+    provider: 'Pollinations',
+    model: 'flux',
   };
 }
 
@@ -270,19 +344,10 @@ async function generateWithCloudflare(
       apiToken
     );
   } catch (textToImageError) {
-    console.warn('Cloudflare text-to-image fallback failed; trying OpenRouter image generation:', textToImageError);
-    try {
-      const openRouterFallback = await generateWithRecraft(textToImagePrompt);
-      if (openRouterFallback) return openRouterFallback;
-    } catch (openRouterError) {
-      throw new Error(
-        `Cloudflare img2img failed: ${img2imgError instanceof Error ? img2imgError.message : String(img2imgError)}. ` +
-        `Cloudflare text-to-image failed: ${textToImageError instanceof Error ? textToImageError.message : String(textToImageError)}. ` +
-        `OpenRouter fallback failed: ${openRouterError instanceof Error ? openRouterError.message : String(openRouterError)}`
-      );
-    }
-
-    throw textToImageError;
+    throw new Error(
+      `Cloudflare img2img failed: ${img2imgError instanceof Error ? img2imgError.message : String(img2imgError)}. ` +
+      `Cloudflare text-to-image failed: ${textToImageError instanceof Error ? textToImageError.message : String(textToImageError)}`
+    );
   }
 }
 
@@ -364,12 +429,16 @@ export async function generateReplacementImage(
       }
       return sourceImage ? generateWithCloudflare(prompt, sourceImage) : null;
     },
+    huggingface: () => generateWithHuggingFace(prompt),
+    pollinations: () => generateWithPollinations(prompt),
     recraft: () => generateWithRecraft(prompt),
   };
   const providerOrder = preferredProvider === 'auto'
     ? [
         ['Google Gemini', providers.google],
         ['Cloudflare Workers AI', providers.cloudflare],
+        ['Hugging Face FLUX', providers.huggingface],
+        ['Pollinations', providers.pollinations],
         ['OpenRouter Recraft', providers.recraft],
       ] as const
     : [[preferredProvider, providers[preferredProvider]]] as const;

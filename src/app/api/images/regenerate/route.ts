@@ -25,7 +25,9 @@ export async function POST(req: Request) {
       item,
       item.itemNumber - 1,
       typeof body.customPrompt === 'string' ? body.customPrompt : undefined,
-      ['auto', 'google', 'cloudflare', 'recraft'].includes(body.provider) ? body.provider as ImageProviderChoice : 'auto'
+      ['auto', 'google', 'cloudflare', 'huggingface', 'pollinations', 'recraft'].includes(body.provider)
+        ? body.provider as ImageProviderChoice
+        : 'auto'
     );
 
     if (!generatedImage) {

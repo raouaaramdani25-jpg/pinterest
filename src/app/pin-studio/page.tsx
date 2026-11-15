@@ -26,7 +26,9 @@ function PinStudioContent() {
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [imagePrompts, setImagePrompts] = useState<string[]>([]);
-  const [imageProvider, setImageProvider] = useState<'auto' | 'google' | 'cloudflare' | 'recraft'>('auto');
+  const [imageProvider, setImageProvider] = useState<
+    'auto' | 'google' | 'cloudflare' | 'huggingface' | 'pollinations' | 'recraft'
+  >('auto');
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [copiedTitle, setCopiedTitle] = useState(false);
@@ -557,7 +559,15 @@ function PinStudioContent() {
             <select
               value={imageProvider}
               onChange={(event) => {
-                setImageProvider(event.target.value as 'auto' | 'google' | 'cloudflare' | 'recraft');
+                setImageProvider(
+                  event.target.value as
+                    | 'auto'
+                    | 'google'
+                    | 'cloudflare'
+                    | 'huggingface'
+                    | 'pollinations'
+                    | 'recraft'
+                );
                 setImageError(null);
               }}
               className="w-full rounded-lg border border-[#d7c1a8] bg-white px-2.5 py-2 text-[11px] font-semibold text-[#553c30]"
@@ -565,6 +575,8 @@ function PinStudioContent() {
             >
               <option value="auto">Auto fallback</option>
               <option value="cloudflare">Cloudflare FLUX</option>
+              <option value="huggingface">Hugging Face FLUX</option>
+              <option value="pollinations">Pollinations FLUX (free)</option>
               <option value="google">Google Gemini</option>
               <option value="recraft">OpenRouter Recraft</option>
             </select>

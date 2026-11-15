@@ -57,6 +57,6 @@ A complete, automated system designed specifically for **CozySpace** to turn Pin
 - **Application Password:** `WfSP R4rl v3Aq DDaD jksn Iy2l`
 - **Amazon Tag:** `cozyplace04-20`
 - **OpenRouter:** Set `OPENROUTER_API_KEY` in `.env.local` to enable AI rewriting with `nvidia/nemotron-3.5-super-vl:free`.
-- **AI Images:** Set `GEMINI_API_KEY` (or `GOOGLE_GEMINI_API_KEY`), `CLOUDFLARE_ACCOUNT_ID`, and `CLOUDFLARE_API_TOKEN` to generate replacement images automatically. The fallback order is Google Gemini, Cloudflare Workers AI, Recraft V4.1 Flash V2, then the original image. Gemini image-generation models may require image-generation quota even when the Gemini API key itself is free.
+- **AI Images:** Set `GEMINI_API_KEY` (or `GOOGLE_GEMINI_API_KEY`), `CLOUDFLARE_ACCOUNT_ID`, and `CLOUDFLARE_API_TOKEN` to generate replacement images automatically. Optional `HUGGINGFACE_API_KEY` (or `HF_TOKEN`) enables Hugging Face FLUX.1-schnell. The fallback order is Google Gemini, Cloudflare Workers AI, Hugging Face FLUX, Pollinations, Recraft V4.1 Flash V2, then the original image. Gemini image-generation models may require image-generation quota even when the Gemini API key itself is free; Pollinations availability and limits can change.
 
 تقدر تبدلهم أو تيستي الاتصال من صفحة **Settings** فـ الـ Dashboard فـ أي وقت!
