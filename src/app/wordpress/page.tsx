@@ -219,6 +219,10 @@ export default function WordPressPublisherPage() {
                       🔗 Copy Image Link
                     </button>
                   </div>
+                  <span className="text-[10px] text-[#7c5742]">
+                    Image AI: {activeArticle.items[0].imageAiProvider || 'Original / not recorded'}
+                    {activeArticle.items[0].imageAiModel ? ` · ${activeArticle.items[0].imageAiModel}` : ''}
+                  </span>
                 </div>
               )}
 
@@ -356,6 +360,10 @@ export default function WordPressPublisherPage() {
               <h1 className="text-2xl sm:text-3xl font-bold font-serif text-[#2f1f1a] leading-tight">
                 {activeArticle.title}
               </h1>
+              <div className="text-[10px] text-[#7c5742]">
+                Text AI: {activeArticle.textAiProvider || 'Not recorded'}
+                {activeArticle.textAiModel ? ` · ${activeArticle.textAiModel}` : ''}
+              </div>
 
               {/* Rendered HTML content as it will appear in Astra */}
               <div 

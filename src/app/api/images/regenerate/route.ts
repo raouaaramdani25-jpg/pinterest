@@ -33,13 +33,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'An existing image is required.' }, { status: 400 });
     }
 
-    const newImageUrl = await generateReplacementImage(
+    const generatedImage = await generateReplacementImage(
       item,
       item.itemNumber - 1,
       typeof body.customPrompt === 'string' ? body.customPrompt : undefined
     );
 
-    if (!newImageUrl) {
+    if (!generatedImage) {
       return NextResponse.json({
         success: false,
         error: 'All configured image providers failed to generate a replacement.',
@@ -47,7 +47,12 @@ export async function POST(req: Request) {
     }
 
     removeGeneratedFile(item.imageUrl);
-    return NextResponse.json({ success: true, imageUrl: newImageUrl });
+    return NextResponse.json({
+      success: true,
+      imageUrl: generatedImage.url,
+      imageAiProvider: generatedImage.provider,
+      imageAiModel: generatedImage.model,
+    });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message || 'Image regeneration failed.' }, { status: 500 });
   }

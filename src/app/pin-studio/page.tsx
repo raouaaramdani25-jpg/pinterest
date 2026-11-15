@@ -353,7 +353,14 @@ function PinStudioContent() {
       const updatedArticle: Article = {
         ...selectedArticle,
         items: selectedArticle.items.map((articleItem, itemIndex) =>
-          itemIndex === index ? { ...articleItem, imageUrl: data.imageUrl } : articleItem
+          itemIndex === index
+            ? {
+                ...articleItem,
+                imageUrl: data.imageUrl,
+                imageAiProvider: data.imageAiProvider,
+                imageAiModel: data.imageAiModel,
+              }
+            : articleItem
         ),
       };
       const saveResponse = await fetch('/api/articles', {
@@ -545,6 +552,11 @@ function PinStudioContent() {
               </label>
               <span className="text-[10px] text-[#9b7053]">Google → Cloudflare → Recraft</span>
             </div>
+            <div className="flex flex-wrap gap-1.5 text-[10px] text-[#7c5742]">
+              <span className="px-2 py-0.5 rounded bg-white border border-[#e8dbca]">
+                Text: {selectedArticle?.textAiProvider || 'Unknown'} / {selectedArticle?.textAiModel || 'Not recorded'}
+              </span>
+            </div>
             <p className="text-[11px] text-[#7c5742]">
               عدّل الـ prompt باش تبدل الجو، الألوان، أو composition ديال أي صورة.
             </p>
@@ -577,6 +589,12 @@ function PinStudioContent() {
                     <span className="text-[11px] font-semibold leading-relaxed text-[#553c30]">
                       Image {index + 1}{selectedArticle?.items?.[index]?.title ? ` · ${selectedArticle.items[index].title}` : ''}
                     </span>
+                  </div>
+                  <div className="text-[10px] text-[#7c5742]">
+                    Image AI: {selectedArticle?.items?.[index]?.imageAiProvider || 'Original / not recorded'}
+                    {selectedArticle?.items?.[index]?.imageAiModel
+                      ? ` · ${selectedArticle.items[index].imageAiModel}`
+                      : ''}
                   </div>
                   <p className="text-[10px] text-[#9b7053]">Click this image to preview it</p>
                   <textarea

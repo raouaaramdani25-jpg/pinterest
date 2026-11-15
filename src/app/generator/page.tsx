@@ -518,6 +518,10 @@ export default function ArticleGeneratorPage() {
                   <div className="text-[10px] text-[#7c5742]">
                     <strong>AI Prompt:</strong> {item.imagePrompt}
                   </div>
+                  <div className="text-[10px] text-[#7c5742]">
+                    <strong>Image AI:</strong> {item.imageAiProvider || 'Original / not recorded'}
+                    {item.imageAiModel ? ` · ${item.imageAiModel}` : ''}
+                  </div>
                 </div>
 
                 {/* Content & Amazon fields (8 cols) */}
@@ -540,6 +544,10 @@ export default function ArticleGeneratorPage() {
                       onChange={(e) => updateItem(idx, 'description', e.target.value)}
                       className="w-full px-3 py-2 bg-[#faf7f2] border border-[#d7c1a8] rounded-xl text-xs text-[#2f1f1a]"
                     />
+                  </div>
+                  <div className="text-[10px] text-[#7c5742]">
+                    <strong>Text AI:</strong> {item.textAiProvider || 'Not recorded'}
+                    {item.textAiModel ? ` · ${item.textAiModel}` : ''}
                   </div>
 
                   {/* Amazon link settings */}

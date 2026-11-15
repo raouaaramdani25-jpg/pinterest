@@ -261,6 +261,8 @@ export async function POST(req: Request) {
         description: rewrittenDescription,
         imageUrl: imageMatch.imageUrl,
         imagePrompt: imageMatch.imagePrompt,
+        textAiProvider: usedAiRewrite ? 'OpenRouter' : 'Local fallback',
+        textAiModel: usedAiRewrite ? 'nvidia/nemotron-3.5-super-vl:free' : 'Local cozy-tone rewriter',
         amazonKeyword,
         amazonSearchUrl,
         ctaText,
@@ -286,6 +288,8 @@ export async function POST(req: Request) {
           description: rewriteToCozyTone(ft, ''),
           imageUrl: img.imageUrl,
           imagePrompt: img.imagePrompt,
+          textAiProvider: usedAiRewrite ? 'OpenRouter' : 'Local fallback',
+          textAiModel: usedAiRewrite ? 'nvidia/nemotron-3.5-super-vl:free' : 'Local cozy-tone rewriter',
           amazonKeyword: ft.toLowerCase(),
           amazonSearchUrl: buildAmazonSearchUrl(ft, amazonTag),
           ctaText: `Shop ${ft} on Amazon`,
@@ -312,6 +316,8 @@ export async function POST(req: Request) {
       items: rewrittenItems,
       createdAt: new Date().toISOString(),
       status: 'draft',
+      textAiProvider: usedAiRewrite ? 'OpenRouter' : 'Local fallback',
+      textAiModel: usedAiRewrite ? 'nvidia/nemotron-3.5-super-vl:free' : 'Local cozy-tone rewriter',
     };
 
     return NextResponse.json({
