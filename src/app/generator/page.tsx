@@ -156,29 +156,93 @@ export default function ArticleGeneratorPage() {
 
       if (data.success && data.article) {
         setScrapeStatus('2/4 Rewriting into aesthetic Cozy listicle...');
-        if (data.article.title) setTopic(data.article.title);
-        if (data.article.category) setCategory(data.article.category);
-        if (data.article.metaDescription) setMetaDescription(data.article.metaDescription);
-        if (data.article.items?.length > 0) setItems(data.article.items);
+        let workingArticle: Article = data.article;
+        if (workingArticle.title) setTopic(workingArticle.title);
+        if (workingArticle.category) setCategory(workingArticle.category);
+        if (workingArticle.metaDescription) setMetaDescription(workingArticle.metaDescription);
+        if (workingArticle.items?.length > 0) setItems(workingArticle.items);
 
         const saveRes = await fetch('/api/articles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data.article),
+          body: JSON.stringify(workingArticle),
         });
-        const saveData = await saveRes.json();
+        const saveText = await saveRes.text();
+        let saveData: { success?: boolean; error?: string } = {};
+        try {
+          saveData = JSON.parse(saveText);
+        } catch {
+          throw new Error(saveText.trim().slice(0, 500) || 'The rewritten article could not be saved.');
+        }
 
         if (!saveRes.ok || !saveData.success) {
           throw new Error(saveData.error || 'The rewritten article could not be saved.');
         }
 
-        setScrapeSuccessMsg(
-          `${data.message || `Successfully rewritten into ${data.itemsCount} cozy items with Amazon links & images!`} Saved to Articles & Studio.`
-        );
-        if (Array.isArray(data.imageErrors) && data.imageErrors.length > 0) {
-          setScrapeError(`Some images could not be regenerated: ${data.imageErrors.join(' | ')}`);
+        const imageErrors: string[] = [];
+        let generatedImageCount = 0;
+        for (let index = 0; index < workingArticle.items.length; index += 1) {
+          const item = workingArticle.items[index];
+          setScrapeStatus(`3/4 Generating image ${index + 1}/${workingArticle.items.length}...`);
+
+          try {
+            const imageResponse = await fetch('/api/images/regenerate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...item,
+                customPrompt: item.imagePrompt,
+                provider: imageProviders[index] || 'auto',
+              }),
+            });
+            const imageText = await imageResponse.text();
+            let imageData: {
+              success?: boolean;
+              imageUrl?: string;
+              imageAiProvider?: string;
+              imageAiModel?: string;
+              error?: string;
+            } = {};
+            try {
+              imageData = JSON.parse(imageText);
+            } catch {
+              throw new Error(imageText.trim().slice(0, 300) || `Image ${index + 1} returned an invalid response.`);
+            }
+            if (!imageResponse.ok || !imageData.success || !imageData.imageUrl) {
+              throw new Error(imageData.error || `Image ${index + 1} generation failed.`);
+            }
+
+            const nextItems = workingArticle.items.map((currentItem, currentIndex) =>
+              currentIndex === index
+                ? {
+                    ...currentItem,
+                    imageUrl: imageData.imageUrl,
+                    imageAiProvider: imageData.imageAiProvider,
+                    imageAiModel: imageData.imageAiModel,
+                  }
+                : currentItem
+            );
+            workingArticle = { ...workingArticle, items: nextItems };
+            setItems(nextItems);
+            generatedImageCount += 1;
+
+            await fetch('/api/articles', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(workingArticle),
+            });
+          } catch (imageError: any) {
+            imageErrors.push(`Image ${index + 1} (${item.title}): ${imageError.message || imageError}`);
+          }
         }
-        setScrapeStatus('');
+
+        setScrapeStatus('4/4 Article and images saved.');
+        setScrapeSuccessMsg(
+          `${data.message || `Successfully rewritten into ${data.itemsCount} cozy items with Amazon links.`} Generated ${generatedImageCount}/${workingArticle.items.length} replacement images. Saved to Articles & Studio.`
+        );
+        if (imageErrors.length > 0) {
+          setScrapeError(`Some images could not be regenerated: ${imageErrors.join(' | ')}`);
+        }
       } else {
         setScrapeError(data.error || 'Failed to scrape and rewrite the article.');
         setScrapeStatus('');
