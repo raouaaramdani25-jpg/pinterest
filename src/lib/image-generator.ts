@@ -30,7 +30,7 @@ const CLOUDFLARE_IMAGE_STRENGTH = 0.65;
 const CLOUDFLARE_IMAGE_STEPS = 20;
 const RECRAFT_IMAGE_MODEL = 'recraft/recraft-v4.1-flash-v2:free';
 const HUGGINGFACE_IMAGE_MODEL =
-  process.env.HUGGINGFACE_IMAGE_MODEL || 'stabilityai/stable-diffusion-xl-base-1.0';
+  process.env.HUGGINGFACE_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell';
 const MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024;
 
 function decodeBase64(value: string): Buffer {
@@ -181,17 +181,21 @@ async function generateWithHuggingFace(prompt: string): Promise<GeneratedImage |
   if (!token) return null;
 
   const response = await fetch(
-    `https://router.huggingface.co/hf-inference/models/${HUGGINGFACE_IMAGE_MODEL}`,
+    'https://router.huggingface.co/fal-ai/fal-ai/flux/schnell',
     {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
-        Accept: 'image/png',
+        Accept: 'application/json',
       },
       body: JSON.stringify({
-        inputs: prompt,
-        parameters: { width: 1024, height: 1024 },
+        prompt,
+        image_size: { width: 768, height: 768 },
+        num_inference_steps: 4,
+        num_images: 1,
+        output_format: 'png',
+        enable_safety_checker: true,
       }),
     }
   );
@@ -201,14 +205,30 @@ async function generateWithHuggingFace(prompt: string): Promise<GeneratedImage |
     throw new Error(`Hugging Face image API returned HTTP ${response.status}: ${errorBody.slice(0, 400)}`);
   }
 
-  const contentType = response.headers.get('content-type') || 'image/png';
-  if (!contentType.startsWith('image/')) {
-    throw new Error(`Hugging Face returned an unexpected response: ${contentType}`);
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.startsWith('image/')) {
+    return {
+      data: Buffer.from(await response.arrayBuffer()),
+      mimeType: contentType.split(';')[0],
+      provider: 'Hugging Face',
+      model: HUGGINGFACE_IMAGE_MODEL,
+    };
+  }
+
+  const data = await response.json();
+  const imageUrl = data.images?.[0]?.url;
+  if (typeof imageUrl !== 'string' || !imageUrl) {
+    throw new Error('Hugging Face returned no generated image URL.');
+  }
+
+  const imageResponse = await fetch(imageUrl);
+  if (!imageResponse.ok) {
+    throw new Error(`Could not download the Hugging Face image: HTTP ${imageResponse.status}`);
   }
 
   return {
-    data: Buffer.from(await response.arrayBuffer()),
-    mimeType: contentType.split(';')[0],
+    data: Buffer.from(await imageResponse.arrayBuffer()),
+    mimeType: imageResponse.headers.get('content-type')?.split(';')[0] || 'image/png',
     provider: 'Hugging Face',
     model: HUGGINGFACE_IMAGE_MODEL,
   };
