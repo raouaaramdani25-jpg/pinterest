@@ -1,5 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { randomUUID } from 'crypto';
+import { put } from '@vercel/blob';
 import { ArticleItem } from '@/types';
 
 type GeneratedImage = {
@@ -415,8 +417,15 @@ async function generateWithRecraft(prompt: string): Promise<GeneratedImage | nul
 }
 
 async function saveGeneratedImage(image: GeneratedImage, item: ArticleItem, index: number): Promise<ImageGenerationResult> {
+  const extension = image.mimeType === 'image/jpeg' ? 'jpg' : image.mimeType === 'image/webp' ? 'webp' : 'png';
+  const blob = await put(`generated/${randomUUID()}.${extension}`, new Blob([new Uint8Array(image.data)], { type: image.mimeType }), {
+    access: 'public',
+    addRandomSuffix: false,
+    contentType: image.mimeType,
+  });
+
   return {
-    url: `data:${image.mimeType};base64,${image.data.toString('base64')}`,
+    url: blob.url,
     provider: image.provider || 'Unknown',
     model: image.model || 'Unknown',
   };

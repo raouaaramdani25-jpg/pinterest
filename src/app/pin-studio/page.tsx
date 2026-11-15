@@ -7,6 +7,7 @@ import {
   Layers, Palette, Type, RefreshCw, Sliders 
 } from 'lucide-react';
 import { Article } from '@/types';
+import { loadMergedArticles, saveClientArticle } from '@/lib/client-article-storage';
 
 function PinStudioContent() {
   const searchParams = useSearchParams();
@@ -53,16 +54,14 @@ function PinStudioContent() {
 
   // Load articles
   useEffect(() => {
-    fetch('/api/articles')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success && data.articles.length > 0) {
-          setArticles(data.articles);
-          const found = data.articles.find((a: Article) => a.id === requestedArticleId) || data.articles[0];
-          setSelectedArticle(found);
-          applyArticleData(found);
-        }
-      });
+    loadMergedArticles().then((loadedArticles) => {
+      if (loadedArticles.length > 0) {
+        setArticles(loadedArticles);
+        const found = loadedArticles.find((a) => a.id === requestedArticleId) || loadedArticles[0];
+        setSelectedArticle(found);
+        applyArticleData(found);
+      }
+    });
   }, [requestedArticleId]);
 
   const applyArticleData = (article: Article) => {
@@ -376,7 +375,9 @@ function PinStudioContent() {
       if (!saveResponse.ok || !saveData.success) {
         throw new Error(saveData.error || 'The new image could not be saved to the article.');
       }
+      await saveClientArticle(updatedArticle);
       setSelectedArticle(updatedArticle);
+      setArticles((current) => current.map((article) => (article.id === updatedArticle.id ? updatedArticle : article)));
     } catch (error: any) {
       setImageError(error.message || 'Image regeneration failed.');
     } finally {

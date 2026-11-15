@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { publishToWordPress } from '@/lib/wordpress-server';
-import { getArticles, saveArticle } from '@/lib/storage';
+import { getArticleById, saveArticle } from '@/lib/storage';
 import { Article } from '@/types';
 import fs from 'fs';
 import path from 'path';
@@ -23,10 +23,16 @@ function getActiveSettings() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { articleId, publishStatus = 'draft', credentials } = body;
+    const { articleId, publishStatus = 'draft', credentials, article: providedArticle } = body;
 
-    const articles = getArticles();
-    const article = articles.find((a) => a.id === articleId);
+    const isValidProvided =
+      providedArticle &&
+      typeof providedArticle.title === 'string' &&
+      Array.isArray(providedArticle.items) &&
+      providedArticle.items.length > 0;
+    const article: Article | null =
+      (isValidProvided ? (providedArticle as Article) : null) ||
+      (typeof articleId === 'string' ? await getArticleById(articleId) : null);
 
     if (!article) {
       return NextResponse.json({ success: false, error: 'Article not found' }, { status: 404 });
@@ -58,12 +64,13 @@ export async function POST(req: Request) {
       article.wpPostId = result.postId;
       article.wpPostUrl = result.postUrl;
       article.publishedAt = new Date().toISOString();
-      saveArticle(article);
+      await saveArticle(article);
 
       return NextResponse.json({
         success: true,
         postId: result.postId,
         postUrl: result.postUrl,
+        article,
         message: `Successfully uploaded "${article.title}" to WordPress as ${publishStatus.toUpperCase()}!`,
       });
     } else {

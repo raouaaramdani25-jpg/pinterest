@@ -1,11 +1,8 @@
-import fs from 'fs';
-import path from 'path';
+import { desc, eq, sql } from 'drizzle-orm';
 import { Article } from '@/types';
 import { buildAmazonSearchUrl } from './amazon';
-
-const DATA_DIR = path.join(process.cwd(), 'data');
-const ARTICLES_FILE = path.join(DATA_DIR, 'articles.json');
-const IS_SERVERLESS = process.env.VERCEL === '1' || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+import { db } from './db';
+import { articles as articlesTable } from './db/schema';
 
 const INITIAL_ARTICLES: Article[] = [
   {
@@ -106,68 +103,37 @@ const INITIAL_ARTICLES: Article[] = [
   },
 ];
 
-function ensureDirExists() {
-  if (IS_SERVERLESS) return;
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+let seeded = false;
+
+async function ensureSeeded(): Promise<void> {
+  if (seeded) return;
+  for (const article of INITIAL_ARTICLES) {
+    await db.insert(articlesTable).values({ id: article.id, data: article }).onConflictDoNothing();
   }
+  seeded = true;
 }
 
-let volatileArticles: Article[] | null = null;
-
-export function getArticles(): Article[] {
-  if (IS_SERVERLESS) {
-    return volatileArticles || INITIAL_ARTICLES;
-  }
-
-  ensureDirExists();
-  if (!fs.existsSync(ARTICLES_FILE)) {
-    fs.writeFileSync(ARTICLES_FILE, JSON.stringify(INITIAL_ARTICLES, null, 2), 'utf-8');
-    return INITIAL_ARTICLES;
-  }
-  try {
-    const raw = fs.readFileSync(ARTICLES_FILE, 'utf-8');
-    return JSON.parse(raw);
-  } catch {
-    return INITIAL_ARTICLES;
-  }
+export async function getArticles(): Promise<Article[]> {
+  await ensureSeeded();
+  const rows = await db.select().from(articlesTable).orderBy(desc(articlesTable.createdAt));
+  return rows.map((row) => row.data);
 }
 
-export function saveArticle(article: Article): void {
-  if (IS_SERVERLESS) {
-    const articles = [...(volatileArticles || INITIAL_ARTICLES)];
-    const existingIndex = articles.findIndex((a) => a.id === article.id);
-
-    if (existingIndex >= 0) {
-      articles[existingIndex] = article;
-    } else {
-      articles.unshift(article);
-    }
-
-    volatileArticles = articles;
-    return;
-  }
-
-  ensureDirExists();
-  const articles = getArticles();
-  const existingIndex = articles.findIndex((a) => a.id === article.id);
-
-  if (existingIndex >= 0) {
-    articles[existingIndex] = article;
-  } else {
-    articles.unshift(article);
-  }
-
-  fs.writeFileSync(ARTICLES_FILE, JSON.stringify(articles, null, 2), 'utf-8');
+export async function getArticleById(id: string): Promise<Article | null> {
+  const [row] = await db.select().from(articlesTable).where(eq(articlesTable.id, id)).limit(1);
+  return row?.data ?? null;
 }
 
-export function deleteArticle(id: string): void {
-  if (IS_SERVERLESS) {
-    volatileArticles = (volatileArticles || INITIAL_ARTICLES).filter((article) => article.id !== id);
-    return;
-  }
+export async function saveArticle(article: Article): Promise<void> {
+  await db
+    .insert(articlesTable)
+    .values({ id: article.id, data: article })
+    .onConflictDoUpdate({
+      target: articlesTable.id,
+      set: { data: article, updatedAt: sql`now()` },
+    });
+}
 
-  ensureDirExists();
-  const articles = getArticles().filter((a) => a.id !== id);
-  fs.writeFileSync(ARTICLES_FILE, JSON.stringify(articles, null, 2), 'utf-8');
+export async function deleteArticle(id: string): Promise<void> {
+  await db.delete(articlesTable).where(eq(articlesTable.id, id));
 }

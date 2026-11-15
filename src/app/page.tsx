@@ -7,6 +7,7 @@ import {
   ExternalLink, ShoppingBag, Eye, TrendingUp, ShieldCheck, RefreshCw, Trash2
 } from 'lucide-react';
 import { Article } from '@/types';
+import { deleteClientArticle, loadMergedArticles, saveClientArticle } from '@/lib/client-article-storage';
 
 export default function DashboardPage() {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -17,11 +18,7 @@ export default function DashboardPage() {
 
   const fetchArticles = async () => {
     try {
-      const res = await fetch('/api/articles');
-      const data = await res.json();
-      if (data.success) {
-        setArticles(data.articles);
-      }
+      setArticles(await loadMergedArticles());
     } catch (e) {
       console.error(e);
     } finally {
@@ -40,10 +37,15 @@ export default function DashboardPage() {
       const res = await fetch('/api/wordpress/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ articleId, publishStatus: status }),
+        body: JSON.stringify({
+          articleId,
+          article: articles.find((item) => item.id === articleId),
+          publishStatus: status,
+        }),
       });
       const data = await res.json();
       if (data.success) {
+        if (data.article) await saveClientArticle(data.article);
         setPublishMessage({ id: articleId, text: data.message });
         fetchArticles();
       } else {
@@ -74,6 +76,7 @@ export default function DashboardPage() {
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to delete the article.');
       }
+      await deleteClientArticle(article.id);
 
       setArticles((current) => current.filter((item) => item.id !== article.id));
     } catch (err: any) {
