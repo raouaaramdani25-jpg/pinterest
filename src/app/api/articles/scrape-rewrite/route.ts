@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { buildAmazonSearchUrl, DEFAULT_AMAZON_TAG } from '@/lib/amazon';
 import { matchCozyImage } from '@/lib/image-matcher';
-import { generateReplacementImages } from '@/lib/image-generator';
 import { Article, ArticleItem } from '@/types';
 
 // Clean raw HTML to plain text
@@ -531,8 +530,6 @@ export async function POST(req: Request) {
       });
     }
 
-    const imageBatch = await generateReplacementImages(rewrittenItems);
-    const generatedImageCount = imageBatch.generatedCount;
     const rewrittenTitle =
       aiRewrite?.title?.trim() ||
       `10 Cozy ${originalTitle.replace(/^(the|top|best|\d+)\s*/i, '')} Ideas You'll Want to Copy Immediately`;
@@ -560,8 +557,7 @@ export async function POST(req: Request) {
       sourceUrl: url,
       originalTitle,
       itemsCount: rewrittenItems.length,
-      message: `Successfully scraped and ${usedAiRewrite ? `AI-rewritten with ${aiProvider} (${aiModel})` : 'rewritten locally'} "${originalTitle}" into ${rewrittenItems.length} cozy listicle items. Generated ${generatedImageCount} replacement AI images.${imageBatch.errors.length > 0 ? ` ${imageBatch.errors.length} image(s) failed.` : ''}`,
-      imageErrors: imageBatch.errors,
+      message: `Successfully scraped and ${usedAiRewrite ? `AI-rewritten with ${aiProvider} (${aiModel})` : 'rewritten locally'} "${originalTitle}" into ${rewrittenItems.length} cozy listicle items. Image generation will continue in the Article Generator.`,
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
