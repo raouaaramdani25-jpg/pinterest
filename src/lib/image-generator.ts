@@ -30,7 +30,7 @@ const CLOUDFLARE_IMAGE_STRENGTH = 0.65;
 const CLOUDFLARE_IMAGE_STEPS = 20;
 const RECRAFT_IMAGE_MODEL = 'recraft/recraft-v4.1-flash-v2:free';
 const HUGGINGFACE_IMAGE_MODEL =
-  process.env.HUGGINGFACE_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell';
+  process.env.HUGGINGFACE_IMAGE_MODEL || 'stabilityai/stable-diffusion-xl-base-1.0';
 const MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024;
 
 function decodeBase64(value: string): Buffer {
@@ -296,11 +296,7 @@ async function generateWithCloudflare(
   if (sourceImage.mimeType.startsWith('image/') && sourceImage.data.length <= MAX_SOURCE_IMAGE_BYTES) {
     const imageBase64 = sourceImage.data.toString('base64');
     const imagePrompt = `${prompt} Create a new original image inspired by the reference image.`;
-    const imagePayloads = [
-      { image: Array.from(sourceImage.data) },
-      { image_b64: imageBase64 },
-      { image: imageBase64 },
-    ];
+    const imagePayloads = [{ image_b64: imageBase64 }];
 
     for (const imagePayload of imagePayloads) {
       try {
@@ -338,7 +334,6 @@ async function generateWithCloudflare(
       CLOUDFLARE_TEXT_MODEL,
       {
         prompt: `${textToImagePrompt} Create a new original image with a similar subject and mood.`,
-        num_steps: 4,
       },
       accountId,
       apiToken
