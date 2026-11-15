@@ -18,9 +18,9 @@ export type ImageProviderChoice = 'auto' | 'google' | 'cloudflare' | 'recraft';
 
 const GOOGLE_IMAGE_MODEL = process.env.GOOGLE_GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
 const CLOUDFLARE_IMAGE_MODEL =
-  process.env.CLOUDFLARE_IMAGE_MODEL || '@cf/bytedance/stable-diffusion-xl-lightning';
+  process.env.CLOUDFLARE_IMAGE_MODEL || '@cf/stabilityai/stable-diffusion-xl-base-1.0';
 const CLOUDFLARE_IMAGE_STRENGTH = 0.65;
-const CLOUDFLARE_IMAGE_STEPS = 8;
+const CLOUDFLARE_IMAGE_STEPS = 20;
 const RECRAFT_IMAGE_MODEL = 'recraft/recraft-v4.1-flash-v2:free';
 const MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024;
 
