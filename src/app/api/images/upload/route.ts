@@ -1,3 +1,5 @@
+import { put } from '@vercel/blob';
+import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   try {
@@ -11,11 +13,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Image must be 10MB or smaller.' }, { status: 400 });
     }
 
-    const imageData = Buffer.from(await file.arrayBuffer()).toString('base64');
+    const extension = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/webp' ? 'webp' : 'png';
+    const blob = await put(`uploads/${randomUUID()}.${extension}`, file, {
+      access: 'public',
+      addRandomSuffix: false,
+      contentType: file.type,
+    });
 
     return NextResponse.json({
       success: true,
-      imageUrl: `data:${file.type};base64,${imageData}`,
+      imageUrl: blob.url,
       imageAiProvider: 'Manual upload',
       imageAiModel: 'User-provided image',
     });

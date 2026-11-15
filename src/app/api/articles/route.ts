@@ -1,3 +1,4 @@
+import { del } from '@vercel/blob';
 import { NextResponse } from 'next/server';
 import { deleteArticle, getArticleById, getArticles, saveArticle } from '@/lib/storage';
 import { Article } from '@/types';
@@ -51,14 +52,30 @@ export async function DELETE(req: Request) {
 
     const generatedDir = path.resolve(process.cwd(), 'public', 'generated');
     let deletedImages = 0;
+    const blobUrls: string[] = [];
     for (const item of article.items || []) {
-      if (!item.imageUrl || !item.imageUrl.startsWith('/generated/')) continue;
+      if (!item.imageUrl) continue;
 
+      try {
+        const imageUrl = new URL(item.imageUrl);
+        if (imageUrl.hostname.endsWith('.public.blob.vercel-storage.com')) {
+          blobUrls.push(imageUrl.toString());
+          continue;
+        }
+      } catch {}
+
+      if (!item.imageUrl.startsWith('/generated/')) continue;
       const imagePath = path.resolve(process.cwd(), 'public', item.imageUrl.slice(1));
       if (imagePath.startsWith(`${generatedDir}${path.sep}`) && fs.existsSync(imagePath)) {
         fs.unlinkSync(imagePath);
         deletedImages += 1;
       }
+    }
+
+    if (blobUrls.length > 0) {
+      const uniqueBlobUrls = Array.from(new Set(blobUrls));
+      await del(uniqueBlobUrls);
+      deletedImages += uniqueBlobUrls.length;
     }
 
     await deleteArticle(id);
