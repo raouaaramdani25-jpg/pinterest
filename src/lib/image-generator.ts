@@ -16,7 +16,12 @@ export type ImageGenerationResult = {
 };
 export type ImageProviderChoice = 'auto' | 'google' | 'cloudflare' | 'recraft';
 
-const GOOGLE_IMAGE_MODEL = process.env.GOOGLE_GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
+const GOOGLE_IMAGE_MODELS = [
+  process.env.GOOGLE_GEMINI_IMAGE_MODEL,
+  'gemini-nano-banana-2.1',
+  'gemini-3.1-flash-image',
+  'gemini-2.5-flash-image',
+].filter((model, index, models): model is string => Boolean(model) && models.indexOf(model) === index);
 const CLOUDFLARE_IMAGE_MODEL =
   process.env.CLOUDFLARE_IMAGE_MODEL || '@cf/stabilityai/stable-diffusion-xl-base-1.0';
 const CLOUDFLARE_TEXT_MODEL =
@@ -55,46 +60,62 @@ async function generateWithGoogle(
   prompt: string,
   sourceImage: GeneratedImage
 ): Promise<GeneratedImage | null> {
-  const apiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const apiKey =
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY;
   if (!apiKey) return null;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_IMAGE_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: `${prompt} Create a new original image inspired by the reference image, not a copy.` },
-            {
-              inline_data: {
-                mime_type: sourceImage.mimeType,
-                data: sourceImage.data.toString('base64'),
-              },
-            },
-          ],
-        }],
-        generationConfig: { responseModalities: ['IMAGE'] },
-      }),
+  const errors: string[] = [];
+  for (const model of GOOGLE_IMAGE_MODELS) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: `${prompt} Create a new original image inspired by the reference image, not a copy.` },
+                {
+                  inline_data: {
+                    mime_type: sourceImage.mimeType,
+                    data: sourceImage.data.toString('base64'),
+                  },
+                },
+              ],
+            }],
+            generationConfig: { responseModalities: ['IMAGE'] },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorBody.slice(0, 300)}`);
+      }
+
+      const data = await response.json();
+      const part = data.candidates?.[0]?.content?.parts?.find(
+        (candidatePart: { inlineData?: { data?: string; mimeType?: string }; inline_data?: { data?: string; mime_type?: string } }) =>
+          candidatePart.inlineData?.data || candidatePart.inline_data?.data
+      );
+      const image = part?.inlineData || part?.inline_data;
+      if (!image?.data) throw new Error('Google returned no generated image.');
+
+      return {
+        data: decodeBase64(image.data),
+        mimeType: image.mimeType || image.mime_type || 'image/png',
+        provider: 'Google Gemini',
+        model,
+      };
+    } catch (error) {
+      errors.push(`${model}: ${error instanceof Error ? error.message : String(error)}`);
     }
-  );
+  }
 
-  if (!response.ok) throw new Error(`Google image API returned HTTP ${response.status}`);
-  const data = await response.json();
-  const part = data.candidates?.[0]?.content?.parts?.find(
-    (candidatePart: { inlineData?: { data?: string; mimeType?: string }; inline_data?: { data?: string; mime_type?: string } }) =>
-      candidatePart.inlineData?.data || candidatePart.inline_data?.data
-  );
-  const image = part?.inlineData || part?.inline_data;
-  if (!image?.data) throw new Error('Google returned no generated image.');
-
-  return {
-    data: decodeBase64(image.data),
-    mimeType: image.mimeType || image.mime_type || 'image/png',
-    provider: 'Google Gemini',
-    model: GOOGLE_IMAGE_MODEL,
-  };
+  throw new Error(`Google image generation failed. ${errors.join(' | ')}`);
 }
 
 async function callCloudflareImageModel(
@@ -331,7 +352,12 @@ export async function generateReplacementImage(
   let generatedImage: GeneratedImage | null = null;
 
   const providers = {
-    google: () => sourceImage ? generateWithGoogle(prompt, sourceImage) : null,
+    google: () => {
+      if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_GEMINI_API_KEY && !process.env.GOOGLE_API_KEY) {
+        throw new Error('Google Gemini is not configured. Set GEMINI_API_KEY.');
+      }
+      return sourceImage ? generateWithGoogle(prompt, sourceImage) : null;
+    },
     cloudflare: () => {
       if (!process.env.CLOUDFLARE_ACCOUNT_ID || !process.env.CLOUDFLARE_API_TOKEN) {
         throw new Error('Cloudflare is not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.');
