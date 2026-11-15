@@ -115,7 +115,10 @@ async function generateWithCloudflare(
     }
   );
 
-  if (!response.ok) throw new Error(`Cloudflare image API returned HTTP ${response.status}`);
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Cloudflare image API returned HTTP ${response.status}: ${errorBody.slice(0, 500)}`);
+  }
   const contentType = response.headers.get('content-type') || '';
   if (contentType.startsWith('image/')) {
     return {
@@ -209,16 +212,26 @@ export async function generateReplacementImage(
     recraft: () => generateWithRecraft(prompt),
   };
   const providerOrder = preferredProvider === 'auto'
-    ? [providers.google, providers.cloudflare, providers.recraft]
-    : [providers[preferredProvider]];
+    ? [
+        ['Google Gemini', providers.google],
+        ['Cloudflare Workers AI', providers.cloudflare],
+        ['OpenRouter Recraft', providers.recraft],
+      ] as const
+    : [[preferredProvider, providers[preferredProvider]]] as const;
+  const providerErrors: string[] = [];
 
-  for (const provider of providerOrder) {
+  for (const [providerName, provider] of providerOrder) {
     try {
       generatedImage = await provider();
       if (generatedImage) break;
     } catch (error) {
+      providerErrors.push(`${providerName}: ${error instanceof Error ? error.message : String(error)}`);
       console.warn('Image provider failed; trying the next provider:', error);
     }
+  }
+
+  if (!generatedImage && providerErrors.length > 0) {
+    throw new Error(providerErrors.join(' | '));
   }
 
   return generatedImage ? saveGeneratedImage(generatedImage, item, index) : null;
