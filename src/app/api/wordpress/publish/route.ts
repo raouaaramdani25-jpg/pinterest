@@ -23,10 +23,12 @@ function getActiveSettings() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { articleId, publishStatus = 'draft', credentials } = body;
+    const { articleId, article: clientArticle, publishStatus = 'draft', credentials } = body;
 
     const articles = getArticles();
-    const article = articles.find((a) => a.id === articleId);
+    const article = articles.find((a) => a.id === articleId) || (
+      clientArticle && clientArticle.id === articleId ? clientArticle as Article : null
+    );
 
     if (!article) {
       return NextResponse.json({ success: false, error: 'Article not found' }, { status: 404 });

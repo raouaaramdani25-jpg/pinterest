@@ -65,12 +65,11 @@ Never commit these values or WordPress application passwords. Dashboard sessions
 
 جميع الإعدادات مسجلة ومحفوظة فـ الملف `.env.local`:
 - **WordPress URL:** `https://cozyspace.company`
-- **WordPress Username:** `CozySpaceApp`
-- **Application Password:** `WfSP R4rl v3Aq DDaD jksn Iy2l`
+- **WordPress credentials:** Configure these through environment variables or the dashboard Settings page. Do not commit credentials.
 - **Amazon Tag:** `cozyplace04-20`
 - **Article rewriting:** The Article Generator has a direct provider selector for Google Gemini, Groq, Cerebras, Cloudflare Workers AI, and OpenRouter. Text rewriting uses only the provider you select and reports an error instead of silently switching providers. Configure the providers you want:
   - `GEMINI_API_KEY` (or `GOOGLE_GEMINI_API_KEY` / `GOOGLE_API_KEY`) with optional `GEMINI_TEXT_MODEL` (default: `gemini-2.5-flash`)
-  - `GROQ_API_KEY` with optional `GROQ_TEXT_MODEL` (default: `llama-3.3-70b-versatile`)
+  - `GROQ_API_KEY` with optional `GROQ_TEXT_MODEL` (default: `openai/gpt-oss-120b`; the retired `llama-3.3-70b-versatile` value is automatically replaced)
   - `CEREBRAS_API_KEY` with optional `CEREBRAS_TEXT_MODEL` (default: `llama-3.3-70b`)
   - `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` with optional `CLOUDFLARE_TEXT_REWRITE_MODEL` (default: `@cf/meta/llama-3.1-8b-instruct`)
   - `OPENROUTER_API_KEY` with optional `OPENROUTER_TEXT_MODEL` (default: `nvidia/nemotron-3.5-super-vl:free`)

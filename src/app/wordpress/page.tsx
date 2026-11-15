@@ -73,6 +73,7 @@ export default function WordPressPublisherPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           articleId: activeArticle.id,
+          article: activeArticle,
           publishStatus,
         }),
       });

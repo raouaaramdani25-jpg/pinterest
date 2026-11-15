@@ -35,6 +35,12 @@ interface AiRewriteResult {
 }
 
 type TextRewriteProvider = 'auto' | 'gemini' | 'groq' | 'cerebras' | 'cloudflare' | 'openrouter';
+const GROQ_DEFAULT_TEXT_MODEL = 'openai/gpt-oss-120b';
+const configuredGroqTextModel = process.env.GROQ_TEXT_MODEL?.trim();
+const GROQ_TEXT_MODEL =
+  configuredGroqTextModel && configuredGroqTextModel !== 'llama-3.3-70b-versatile'
+    ? configuredGroqTextModel
+    : GROQ_DEFAULT_TEXT_MODEL;
 
 type TextRewriteResponse = {
   result: AiRewriteResult;
@@ -263,7 +269,7 @@ async function rewriteWithProvider(
       'Groq',
       'https://api.groq.com/openai/v1/chat/completions',
       process.env.GROQ_API_KEY,
-      process.env.GROQ_TEXT_MODEL || 'llama-3.3-70b-versatile',
+      GROQ_TEXT_MODEL,
       originalTitle,
       originalDesc,
       items

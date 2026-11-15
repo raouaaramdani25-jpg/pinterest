@@ -7,6 +7,7 @@ import {
   Layers, Palette, Type, RefreshCw, Sliders 
 } from 'lucide-react';
 import { Article } from '@/types';
+import { getClientArticles } from '@/lib/client-article-storage';
 
 function PinStudioContent() {
   const searchParams = useSearchParams();
@@ -53,16 +54,31 @@ function PinStudioContent() {
 
   // Load articles
   useEffect(() => {
-    fetch('/api/articles')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success && data.articles.length > 0) {
-          setArticles(data.articles);
-          const found = data.articles.find((a: Article) => a.id === requestedArticleId) || data.articles[0];
-          setSelectedArticle(found);
-          applyArticleData(found);
-        }
-      });
+    const loadArticles = async () => {
+      const [response, clientArticles] = await Promise.all([
+        fetch('/api/articles'),
+        getClientArticles(),
+      ]);
+      const data = await response.json();
+      const serverArticles: Article[] = data.success ? data.articles : [];
+      const mergedArticles = [
+        ...clientArticles,
+        ...serverArticles.filter(
+          (serverArticle) => !clientArticles.some((clientArticle) => clientArticle.id === serverArticle.id)
+        ),
+      ];
+
+      if (mergedArticles.length > 0) {
+        setArticles(mergedArticles);
+        const found = mergedArticles.find((a) => a.id === requestedArticleId) || mergedArticles[0];
+        setSelectedArticle(found);
+        applyArticleData(found);
+      }
+    };
+
+    loadArticles().catch((error) => {
+      console.error('Could not load articles for Pin Studio:', error);
+    });
   }, [requestedArticleId]);
 
   const applyArticleData = (article: Article) => {
