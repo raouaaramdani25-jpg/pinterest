@@ -9,7 +9,7 @@ import {
 export default function SettingsPage() {
   const [wpSiteUrl, setWpSiteUrl] = useState('https://cozyspace.company');
   const [wpUsername, setWpUsername] = useState('CozySpaceApp');
-  const [wpAppPassword, setWpAppPassword] = useState('WfSP R4rl v3Aq DDaD jksn Iy2l');
+  const [wpAppPassword, setWpAppPassword] = useState('');
   const [amazonTag, setAmazonTag] = useState('cozyplace04-20');
 
   const [saving, setSaving] = useState(false);

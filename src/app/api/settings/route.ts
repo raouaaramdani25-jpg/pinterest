@@ -23,13 +23,20 @@ function getStoredSettings() {
   return {
     wpSiteUrl: process.env.WP_SITE_URL || 'https://cozyspace.company',
     wpUsername: process.env.WP_USERNAME || 'admin',
-    wpAppPassword: process.env.WP_APP_PASSWORD || 'WfSP R4rl v3Aq DDaD jksn Iy2l',
+    wpAppPassword: process.env.WP_APP_PASSWORD || '',
     amazonTag: process.env.AMAZON_TAG || 'cozyplace04-20',
   };
 }
 
 export async function GET() {
-  return NextResponse.json({ success: true, settings: getStoredSettings() });
+  const settings = getStoredSettings();
+  return NextResponse.json({
+    success: true,
+    settings: {
+      ...settings,
+      wpAppPassword: settings.wpAppPassword ? '********' : '',
+    },
+  });
 }
 
 export async function POST(req: Request) {
@@ -39,7 +46,9 @@ export async function POST(req: Request) {
     const updated = {
       wpSiteUrl: (body.wpSiteUrl || current.wpSiteUrl || '').trim(),
       wpUsername: (body.wpUsername || current.wpUsername || '').trim(),
-      wpAppPassword: (body.wpAppPassword || current.wpAppPassword || '').trim(),
+      wpAppPassword: body.wpAppPassword && body.wpAppPassword !== '********'
+        ? String(body.wpAppPassword).trim()
+        : current.wpAppPassword || '',
       amazonTag: (body.amazonTag || current.amazonTag || 'cozyplace04-20').trim(),
     };
 
