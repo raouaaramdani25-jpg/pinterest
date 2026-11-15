@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Sparkles, Plus, Trash2, Save, ShoppingBag, Globe, 
@@ -93,11 +93,26 @@ export default function ArticleGeneratorPage() {
   const [rawInput, setRawInput] = useState('');
   const [scraping, setScraping] = useState(false);
   const [scrapeStatus, setScrapeStatus] = useState('');
+  const [scrapeElapsed, setScrapeElapsed] = useState(0);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
   const [scrapeSuccessMsg, setScrapeSuccessMsg] = useState<string | null>(null);
   const [rewriteProvider, setRewriteProvider] = useState('gemini');
   const [imageProviders, setImageProviders] = useState<Record<number, string>>({});
   const [imageActionIndex, setImageActionIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!scraping) {
+      setScrapeElapsed(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    const interval = window.setInterval(() => {
+      setScrapeElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [scraping]);
 
   const handleScrapeRewriteUrl = async () => {
     if (!competitorUrl.trim() || !competitorUrl.startsWith('http')) {
@@ -106,6 +121,7 @@ export default function ArticleGeneratorPage() {
     }
 
     setScraping(true);
+    setScrapeElapsed(0);
     setScrapeError(null);
     setScrapeSuccessMsg(null);
     setScrapeStatus('1/4 Connecting to competitor website & reading content...');
@@ -468,7 +484,10 @@ export default function ArticleGeneratorPage() {
         {scraping && (
           <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2.5 animate-pulse">
             <RefreshCw className="w-4 h-4 animate-spin text-amber-700 flex-shrink-0" />
-            <span className="font-medium">{scrapeStatus || 'Processing... Please wait a few seconds.'}</span>
+            <span className="font-medium">
+              {scrapeStatus || 'Processing... Please wait a few seconds.'}
+              {' '}({scrapeElapsed}s elapsed — text rewrite and image generation are still running)
+            </span>
           </div>
         )}
 

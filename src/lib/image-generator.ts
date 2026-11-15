@@ -314,12 +314,27 @@ async function generateWithCloudflare(
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = process.env.CLOUDFLARE_API_TOKEN;
   if (!accountId || !apiToken) return null;
-  let img2imgError: unknown;
+  let textToImageError: unknown;
+
+  try {
+    return await callCloudflareImageModel(
+      CLOUDFLARE_TEXT_MODEL,
+      {
+        prompt: `${prompt} Create a new original image with a similar subject and mood.`,
+      },
+      accountId,
+      apiToken
+    );
+  } catch (error) {
+    textToImageError = error;
+    console.warn('Cloudflare text-to-image failed; trying image-to-image:', error);
+  }
 
   if (sourceImage.mimeType.startsWith('image/') && sourceImage.data.length <= MAX_SOURCE_IMAGE_BYTES) {
     const imageBase64 = sourceImage.data.toString('base64');
     const imagePrompt = `${prompt} Create a new original image inspired by the reference image.`;
     const imagePayloads = [{ image_b64: imageBase64 }];
+    let img2imgError: unknown;
 
     for (const imagePayload of imagePayloads) {
       try {
@@ -340,33 +355,16 @@ async function generateWithCloudflare(
       }
     }
     console.warn('Cloudflare img2img failed with all supported image payload formats; trying fallback generation:', img2imgError);
-  } else {
-    img2imgError = new Error('Cloudflare requires a valid image input up to 10MB.');
-  }
-
-  let textToImagePrompt = prompt;
-  try {
-    if (sourceImage.mimeType.startsWith('image/')) {
-      const describedPrompt = await describeImageWithOpenRouter(prompt, sourceImage);
-      if (describedPrompt) {
-        textToImagePrompt = `${prompt} Preserve this visual reference: ${describedPrompt}`;
-      }
-    }
-
-    return await callCloudflareImageModel(
-      CLOUDFLARE_TEXT_MODEL,
-      {
-        prompt: `${textToImagePrompt} Create a new original image with a similar subject and mood.`,
-      },
-      accountId,
-      apiToken
-    );
-  } catch (textToImageError) {
     throw new Error(
-      `Cloudflare img2img failed: ${img2imgError instanceof Error ? img2imgError.message : String(img2imgError)}. ` +
-      `Cloudflare text-to-image failed: ${textToImageError instanceof Error ? textToImageError.message : String(textToImageError)}`
+      `Cloudflare text-to-image failed: ${textToImageError instanceof Error ? textToImageError.message : String(textToImageError)}. ` +
+      `Cloudflare img2img failed: ${img2imgError instanceof Error ? img2imgError.message : String(img2imgError)}`
     );
   }
+
+  throw new Error(
+    `Cloudflare text-to-image failed: ${textToImageError instanceof Error ? textToImageError.message : String(textToImageError)}. ` +
+    'Cloudflare requires a valid image input up to 10MB for img2img.'
+  );
 }
 
 async function generateWithRecraft(prompt: string): Promise<GeneratedImage | null> {
