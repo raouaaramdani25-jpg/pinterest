@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Article, ArticleItem } from '@/types';
 import { buildAmazonSearchUrl } from '@/lib/amazon';
+import { saveClientArticle } from '@/lib/client-article-storage';
 
 const PRESET_TOPICS = [
   {
@@ -178,6 +179,7 @@ export default function ArticleGeneratorPage() {
         if (!saveRes.ok || !saveData.success) {
           throw new Error(saveData.error || 'The rewritten article could not be saved.');
         }
+        await saveClientArticle(workingArticle);
 
         const imageErrors: string[] = [];
         let generatedImageCount = 0;
@@ -225,6 +227,7 @@ export default function ArticleGeneratorPage() {
             workingArticle = { ...workingArticle, items: nextItems };
             setItems(nextItems);
             generatedImageCount += 1;
+            await saveClientArticle(workingArticle);
 
             await fetch('/api/articles', {
               method: 'POST',
@@ -395,6 +398,7 @@ export default function ArticleGeneratorPage() {
       });
       const data = await res.json();
       if (data.success) {
+        await saveClientArticle(newArticle);
         setSaveSuccess(true);
         setTimeout(() => {
           router.push('/');
