@@ -67,7 +67,7 @@ export async function loadMergedArticles(): Promise<Article[]> {
   } catch {}
 
   return [
-    ...clientArticles,
-    ...serverArticles.filter((serverArticle) => !clientArticles.some((clientArticle) => clientArticle.id === serverArticle.id)),
+    ...serverArticles,
+    ...clientArticles.filter((clientArticle) => !serverArticles.some((serverArticle) => serverArticle.id === clientArticle.id)),
   ];
 }

@@ -42,9 +42,9 @@ export default function WordPressPublisherPage() {
       const clientArticles = await getClientArticles();
       const serverArticles: Article[] = data.success ? data.articles : [];
       const mergedArticles = [
-        ...clientArticles,
-        ...serverArticles.filter(
-          (serverArticle) => !clientArticles.some((clientArticle) => clientArticle.id === serverArticle.id)
+        ...serverArticles,
+        ...clientArticles.filter(
+          (clientArticle) => !serverArticles.some((serverArticle) => serverArticle.id === clientArticle.id)
         ),
       ];
       if (mergedArticles.length > 0) {
