@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { generateReplacementImage } from '@/lib/image-generator';
+import { generateReplacementImage, ImageProviderChoice } from '@/lib/image-generator';
 import { ArticleItem } from '@/types';
 
 function removeGeneratedFile(imageUrl: string) {
@@ -36,7 +36,8 @@ export async function POST(req: Request) {
     const generatedImage = await generateReplacementImage(
       item,
       item.itemNumber - 1,
-      typeof body.customPrompt === 'string' ? body.customPrompt : undefined
+      typeof body.customPrompt === 'string' ? body.customPrompt : undefined,
+      ['auto', 'google', 'cloudflare', 'recraft'].includes(body.provider) ? body.provider as ImageProviderChoice : 'auto'
     );
 
     if (!generatedImage) {

@@ -14,6 +14,7 @@ export type ImageGenerationResult = {
   provider: string;
   model: string;
 };
+export type ImageProviderChoice = 'auto' | 'google' | 'cloudflare' | 'recraft';
 
 const GOOGLE_IMAGE_MODEL = process.env.GOOGLE_GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
 const CLOUDFLARE_IMAGE_MODEL =
@@ -200,17 +201,23 @@ async function saveGeneratedImage(image: GeneratedImage, item: ArticleItem, inde
 export async function generateReplacementImage(
   item: ArticleItem,
   index: number,
-  customPrompt?: string
+  customPrompt?: string,
+  preferredProvider: ImageProviderChoice = 'auto'
 ): Promise<ImageGenerationResult | null> {
   const sourceImage = item.imageUrl ? await fetchSourceImage(item.imageUrl) : null;
   const prompt = `${customPrompt?.trim() || `${item.title}. ${item.imagePrompt || item.description}`}. Warm, premium, realistic home decor photography.`;
   let generatedImage: GeneratedImage | null = null;
 
-  for (const provider of [
-    () => sourceImage ? generateWithGoogle(prompt, sourceImage) : null,
-    () => sourceImage ? generateWithCloudflare(prompt, sourceImage) : null,
-    () => generateWithRecraft(prompt),
-  ]) {
+  const providers = {
+    google: () => sourceImage ? generateWithGoogle(prompt, sourceImage) : null,
+    cloudflare: () => sourceImage ? generateWithCloudflare(prompt, sourceImage) : null,
+    recraft: () => generateWithRecraft(prompt),
+  };
+  const providerOrder = preferredProvider === 'auto'
+    ? [providers.google, providers.cloudflare, providers.recraft]
+    : [providers[preferredProvider]];
+
+  for (const provider of providerOrder) {
     try {
       generatedImage = await provider();
       if (generatedImage) break;
