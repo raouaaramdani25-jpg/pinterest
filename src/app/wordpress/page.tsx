@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Article } from '@/types';
 import { formatArticleForWordPress } from '@/lib/wordpress';
+import { getClientArticles, saveClientArticle } from '@/lib/client-article-storage';
 
 type ImageComparisonOption = {
   provider: string;
@@ -38,9 +39,17 @@ export default function WordPressPublisherPage() {
     try {
       const res = await fetch('/api/articles');
       const data = await res.json();
-      if (data.success && data.articles.length > 0) {
-        setArticles(data.articles);
-        setActiveArticle(data.articles[0]);
+      const clientArticles = await getClientArticles();
+      const serverArticles: Article[] = data.success ? data.articles : [];
+      const mergedArticles = [
+        ...clientArticles,
+        ...serverArticles.filter(
+          (serverArticle) => !clientArticles.some((clientArticle) => clientArticle.id === serverArticle.id)
+        ),
+      ];
+      if (mergedArticles.length > 0) {
+        setArticles(mergedArticles);
+        setActiveArticle(mergedArticles[0]);
       }
     } catch (e) {
       console.error(e);
@@ -138,6 +147,7 @@ export default function WordPressPublisherPage() {
     });
     const data = await response.json();
     if (!response.ok || !data.success) throw new Error(data.error || 'Could not save the featured image.');
+    await saveClientArticle(updatedArticle);
     setActiveArticle(updatedArticle);
     setArticles((current) => current.map((article) => article.id === updatedArticle.id ? updatedArticle : article));
   };
