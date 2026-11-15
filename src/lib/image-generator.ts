@@ -110,7 +110,7 @@ async function generateWithCloudflare(
       },
       body: JSON.stringify({
         prompt: `${prompt} Create a new original image inspired by the reference image.`,
-        image: sourceImage.data.toString('base64'),
+        image_b64: sourceImage.data.toString('base64'),
       }),
     }
   );
