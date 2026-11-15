@@ -291,9 +291,11 @@ async function rewriteWithProvider(
     try {
       const result = await providers[candidate]();
       if (result) return result;
+      errors.push(`${candidate}: provider is not configured or returned no result`);
     } catch (error) {
       errors.push(`${candidate}: ${error instanceof Error ? error.message : String(error)}`);
-      console.warn('Text rewrite provider failed; trying the next provider:', error);
+      console.warn('Text rewrite provider failed:', error);
+      if (provider !== 'auto') break;
     }
   }
 
@@ -334,16 +336,15 @@ export async function POST(req: Request) {
     const {
       url,
       amazonTag = DEFAULT_AMAZON_TAG,
-      rewriteProvider = 'auto',
+      rewriteProvider = 'gemini',
     } = await req.json() as { url?: string; amazonTag?: string; rewriteProvider?: TextRewriteProvider };
     const selectedRewriteProvider: TextRewriteProvider = [
-      'auto',
       'gemini',
       'groq',
       'cerebras',
       'cloudflare',
       'openrouter',
-    ].includes(rewriteProvider) ? rewriteProvider : 'auto';
+    ].includes(rewriteProvider) ? rewriteProvider : 'gemini';
 
     if (!url || !url.startsWith('http')) {
       return NextResponse.json({ success: false, error: 'Please enter a valid website URL.' }, { status: 400 });
@@ -443,19 +444,28 @@ export async function POST(req: Request) {
     let aiProvider = '';
     let aiModel = '';
     let usedAiRewrite = false;
-    try {
-      const rewriteResponse = await rewriteWithProvider(
-        selectedRewriteProvider,
-        originalTitle,
-        originalDesc,
-        itemsToProcess
-      );
-      aiRewrite = rewriteResponse?.result || null;
-      aiProvider = rewriteResponse?.provider || '';
-      aiModel = rewriteResponse?.model || '';
-      usedAiRewrite = Boolean(aiRewrite);
-    } catch (aiError) {
-      console.warn('AI rewrite failed; using local fallback:', aiError);
+    if (itemsToProcess.length > 0) {
+      try {
+        if (selectedRewriteProvider === 'auto') {
+          throw new Error('Choose a specific text rewrite provider instead of Auto fallback.');
+        }
+        const rewriteResponse = await rewriteWithProvider(
+          selectedRewriteProvider,
+          originalTitle,
+          originalDesc,
+          itemsToProcess
+        );
+        aiRewrite = rewriteResponse?.result || null;
+        aiProvider = rewriteResponse?.provider || '';
+        aiModel = rewriteResponse?.model || '';
+        usedAiRewrite = Boolean(aiRewrite);
+      } catch (aiError) {
+        const message = aiError instanceof Error ? aiError.message : String(aiError);
+        return NextResponse.json({
+          success: false,
+          error: `Text rewriting failed with ${selectedRewriteProvider}: ${message}`,
+        }, { status: 502 });
+      }
     }
 
     // 4. Construct Rewritten Listicle Items with Amazon Links & Aesthetic Images
@@ -521,17 +531,8 @@ export async function POST(req: Request) {
       });
     }
 
-    let generatedImageCount = 0;
-    try {
-      generatedImageCount = await Promise.race([
-        generateReplacementImages(rewrittenItems),
-        new Promise<number>((_, reject) => {
-          setTimeout(() => reject(new Error('Image generation timed out; keeping the matched images.')), 45_000);
-        }),
-      ]);
-    } catch (imageError) {
-      console.warn('Replacement image generation did not finish:', imageError);
-    }
+    const imageBatch = await generateReplacementImages(rewrittenItems);
+    const generatedImageCount = imageBatch.generatedCount;
     const rewrittenTitle =
       aiRewrite?.title?.trim() ||
       `10 Cozy ${originalTitle.replace(/^(the|top|best|\d+)\s*/i, '')} Ideas You'll Want to Copy Immediately`;
@@ -559,7 +560,8 @@ export async function POST(req: Request) {
       sourceUrl: url,
       originalTitle,
       itemsCount: rewrittenItems.length,
-      message: `Successfully scraped and ${usedAiRewrite ? `AI-rewritten with ${aiProvider} (${aiModel})` : 'rewritten with the local fallback'} "${originalTitle}" into ${rewrittenItems.length} cozy listicle items. Generated ${generatedImageCount} replacement AI images.`,
+      message: `Successfully scraped and ${usedAiRewrite ? `AI-rewritten with ${aiProvider} (${aiModel})` : 'rewritten locally'} "${originalTitle}" into ${rewrittenItems.length} cozy listicle items. Generated ${generatedImageCount} replacement AI images.${imageBatch.errors.length > 0 ? ` ${imageBatch.errors.length} image(s) failed.` : ''}`,
+      imageErrors: imageBatch.errors,
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

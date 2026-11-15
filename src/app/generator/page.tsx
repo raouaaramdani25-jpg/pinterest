@@ -95,7 +95,7 @@ export default function ArticleGeneratorPage() {
   const [scrapeStatus, setScrapeStatus] = useState('');
   const [scrapeError, setScrapeError] = useState<string | null>(null);
   const [scrapeSuccessMsg, setScrapeSuccessMsg] = useState<string | null>(null);
-  const [rewriteProvider, setRewriteProvider] = useState('auto');
+  const [rewriteProvider, setRewriteProvider] = useState('gemini');
   const [imageProviders, setImageProviders] = useState<Record<number, string>>({});
   const [imageActionIndex, setImageActionIndex] = useState<number | null>(null);
 
@@ -143,6 +143,9 @@ export default function ArticleGeneratorPage() {
         setScrapeSuccessMsg(
           `${data.message || `Successfully rewritten into ${data.itemsCount} cozy items with Amazon links & images!`} Saved to Articles & Studio.`
         );
+        if (Array.isArray(data.imageErrors) && data.imageErrors.length > 0) {
+          setScrapeError(`Some images could not be regenerated: ${data.imageErrors.join(' | ')}`);
+        }
         setScrapeStatus('');
       } else {
         setScrapeError(data.error || 'Failed to scrape and rewrite the article.');
@@ -361,7 +364,6 @@ export default function ArticleGeneratorPage() {
               className="rounded-lg border border-[#d7c1a8] bg-white px-2.5 py-1.5 text-xs text-[#2f1f1a] focus:outline-none focus:ring-2 focus:ring-[#9b7053]"
               aria-label="Article rewrite AI provider"
             >
-              <option value="auto">Auto fallback</option>
               <option value="gemini">Google Gemini</option>
               <option value="groq">Groq</option>
               <option value="cerebras">Cerebras</option>
