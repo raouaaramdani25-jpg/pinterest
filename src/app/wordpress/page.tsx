@@ -340,6 +340,8 @@ export default function WordPressPublisherPage() {
                       <option value="auto">Auto fallback</option>
                       <option value="google">Google Gemini</option>
                       <option value="cloudflare">Cloudflare Workers AI</option>
+                      <option value="huggingface">Hugging Face FLUX</option>
+                      <option value="pollinations">Pollinations FLUX (free)</option>
                       <option value="recraft">Recraft via OpenRouter</option>
                     </select>
                     <select
@@ -567,6 +569,8 @@ export default function WordPressPublisherPage() {
                             <option value="auto">Auto fallback</option>
                             <option value="google">Google Gemini</option>
                             <option value="cloudflare">Cloudflare Workers AI</option>
+                            <option value="huggingface">Hugging Face FLUX</option>
+                            <option value="pollinations">Pollinations FLUX (free)</option>
                             <option value="recraft">Recraft via OpenRouter</option>
                           </select>
                           <button
