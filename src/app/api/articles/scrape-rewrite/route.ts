@@ -50,6 +50,26 @@ const REWRITE_SYSTEM_PROMPT = [
   'Return exactly one item for every input item, in the same order.',
 ].join(' ');
 
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+  label: string
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function parseRewriteContent(content: unknown, provider: string): AiRewriteResult {
   if (typeof content !== 'string' || !content.trim()) {
     throw new Error(`${provider} returned an empty rewrite response.`);
@@ -81,7 +101,7 @@ async function rewriteWithOpenRouter(
   }
 
   const model = process.env.OPENROUTER_TEXT_MODEL || 'nvidia/nemotron-3.5-super-vl:free';
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const response = await fetchWithTimeout('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -98,7 +118,7 @@ async function rewriteWithOpenRouter(
         { role: 'user', content: rewritePayload(originalTitle, originalDesc, items) },
       ],
     }),
-  });
+  }, 45_000, 'OpenRouter rewrite');
 
   if (!response.ok) {
     throw new Error(`OpenRouter API error: HTTP ${response.status}`);
@@ -121,7 +141,7 @@ async function rewriteWithGemini(
   if (!apiKey || items.length === 0) return null;
 
   const model = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
       method: 'POST',
@@ -131,7 +151,9 @@ async function rewriteWithGemini(
         contents: [{ role: 'user', parts: [{ text: rewritePayload(originalTitle, originalDesc, items) }] }],
         generationConfig: { responseMimeType: 'application/json', temperature: 0.7 },
       }),
-    }
+    },
+    45_000,
+    'Gemini rewrite'
   );
   if (!response.ok) {
     const errorBody = await response.text();
@@ -159,7 +181,7 @@ async function rewriteWithOpenAICompatible(
 ): Promise<TextRewriteResponse | null> {
   if (!apiKey || items.length === 0) return null;
 
-  const response = await fetch(endpoint, {
+  const response = await fetchWithTimeout(endpoint, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -175,7 +197,7 @@ async function rewriteWithOpenAICompatible(
         { role: 'user', content: rewritePayload(originalTitle, originalDesc, items) },
       ],
     }),
-  });
+  }, 45_000, `${provider} rewrite`);
   if (!response.ok) {
     const errorBody = await response.text();
     throw new Error(`${provider} API error: HTTP ${response.status}: ${errorBody.slice(0, 300)}`);
@@ -198,7 +220,7 @@ async function rewriteWithCloudflare(
   if (!accountId || !apiToken || items.length === 0) return null;
 
   const model = process.env.CLOUDFLARE_TEXT_REWRITE_MODEL || '@cf/meta/llama-3.1-8b-instruct';
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`,
     {
       method: 'POST',
@@ -214,7 +236,9 @@ async function rewriteWithCloudflare(
         max_tokens: 3000,
         temperature: 0.7,
       }),
-    }
+    },
+    45_000,
+    'Cloudflare rewrite'
   );
   if (!response.ok) {
     const errorBody = await response.text();
@@ -328,14 +352,14 @@ export async function POST(req: Request) {
     // 1. Fetch competitor webpage
     let html = '';
     try {
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
         },
         next: { revalidate: 0 },
-      });
+      }, 30_000, 'Competitor website');
 
       if (!response.ok) {
         return NextResponse.json({
@@ -497,7 +521,17 @@ export async function POST(req: Request) {
       });
     }
 
-    const generatedImageCount = await generateReplacementImages(rewrittenItems);
+    let generatedImageCount = 0;
+    try {
+      generatedImageCount = await Promise.race([
+        generateReplacementImages(rewrittenItems),
+        new Promise<number>((_, reject) => {
+          setTimeout(() => reject(new Error('Image generation timed out; keeping the matched images.')), 45_000);
+        }),
+      ]);
+    } catch (imageError) {
+      console.warn('Replacement image generation did not finish:', imageError);
+    }
     const rewrittenTitle =
       aiRewrite?.title?.trim() ||
       `10 Cozy ${originalTitle.replace(/^(the|top|best|\d+)\s*/i, '')} Ideas You'll Want to Copy Immediately`;
